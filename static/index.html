@@ -9,292 +9,957 @@
 <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 <title>Translator</title>
 <style>
-:root{--bg:#eef2f1;--panel:#fff;--ink:#14201e;--muted:#5d6f6b;--line:#cfdad7;--accent:#0f6b5c;--accent-ink:#fff;--err:#b3261e}
-@media (prefers-color-scheme:dark){:root{--bg:#0d1514;--panel:#142120;--ink:#e6efed;--muted:#8fa5a0;--line:#274039;--accent:#4cc3ae;--accent-ink:#06211c;--err:#ff8a80}}
+:root{
+  --bg:#eef2f1;--panel:#ffffff;--ink:#14201e;--muted:#5d6f6b;
+  --line:#cfdad7;--accent:#0f6b5c;--accent-fg:#ffffff;--err:#b3261e;
+  --badge-bg:rgba(15,107,92,0.10);--gold:#d97706;
+  --font:Georgia,"Iowan Old Style","Palatino Linotype",serif;
+  --fs:16px;--pad:16px;--gap:12px;--min-h:170px
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme]){
+  --bg:#0d1514;--panel:#142120;--ink:#e6efed;--muted:#8fa5a0;--line:#274039;--accent:#4cc3ae;--accent-fg:#06231d;--err:#ff8a80;--badge-bg:rgba(76,195,174,0.14);--gold:#fbbf24
+}}
+:root[data-theme=dark]{--bg:#0d1514;--panel:#142120;--ink:#e6efed;--muted:#8fa5a0;--line:#274039;--accent:#4cc3ae;--accent-fg:#06231d;--err:#ff8a80;--badge-bg:rgba(76,195,174,0.14);--gold:#fbbf24}
+:root[data-theme=midnight]{--bg:#090b10;--panel:#111521;--ink:#e2e8f0;--muted:#8b9bb4;--line:#232b3e;--accent:#60a5fa;--accent-fg:#061224;--err:#f87171;--badge-bg:rgba(96,165,250,0.15);--gold:#fbbf24}
+:root[data-theme=sepia]{--bg:#f4ecd8;--panel:#fbf7ed;--ink:#3b2f23;--muted:#786552;--line:#dfd3bc;--accent:#8c5828;--accent-fg:#ffffff;--err:#a83226;--badge-bg:rgba(140,88,40,0.12);--gold:#b45309}
+
+:root[data-accent=blue]{--accent:#2563eb;--accent-fg:#ffffff}
+:root[data-accent=purple]{--accent:#7c3aed;--accent-fg:#ffffff}
+:root[data-accent=orange]{--accent:#d97706;--accent-fg:#ffffff}
+:root[data-accent=rose]{--accent:#e11d48;--accent-fg:#ffffff}
+:root[data-accent=emerald]{--accent:#059669;--accent-fg:#ffffff}
+
+:root[data-size=s]{--fs:14px}
+:root[data-size=l]{--fs:18.5px}
+:root[data-size=xl]{--fs:21px}
+
+:root[data-font=sans]{--font:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+:root[data-font=mono]{--font:ui-monospace,"SFMono-Regular",Menlo,Monaco,Consolas,monospace}
+
+:root[data-density=compact]{--pad:10px;--gap:8px;--min-h:130px}
+:root[data-density=spacious]{--pad:22px;--gap:18px;--min-h:210px}
+
 *{box-sizing:border-box}
-[hidden]{display:none!important}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,"Iowan Old Style",serif}
-main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
-header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
-h1{font-size:1.6rem;margin:0;letter-spacing:-.01em;flex:1}
-.who{color:var(--muted);font-size:.9rem}
-.bar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
-select,button,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+body{margin:0;background:var(--bg);color:var(--ink);font:var(--fs)/1.5 var(--font);transition:background .15s,color .15s}
+main{max-width:960px;margin:0 auto;padding:20px 16px 56px}
+header{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+h1{font-size:1.55rem;margin:0;flex:1;letter-spacing:.2px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dialect-badge{font-size:.7rem;font-weight:normal;padding:2px 8px;border-radius:99px;background:var(--badge-bg);color:var(--accent);border:1px solid var(--accent)}
+.xp-pill{font-size:.8rem;font-weight:bold;padding:3px 10px;border-radius:99px;background:var(--badge-bg);color:var(--accent);border:1px solid var(--accent);cursor:pointer;display:inline-flex;align-items:center;gap:5px}
+.xp-pill:hover{filter:brightness(1.08)}
+.nav-tabs{display:flex;gap:6px;margin-bottom:14px;border-bottom:1px solid var(--line);padding-bottom:10px;flex-wrap:wrap}
+.nav-tab{border:1px solid var(--line);background:var(--panel);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:.9rem;display:inline-flex;align-items:center;gap:6px}
+.nav-tab.active{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:var(--gap)}
+select,button,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 11px}
 select{flex:1;min-width:0}
 button{cursor:pointer}
-button:hover{border-color:var(--accent)}
-button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+button:hover,select:hover{border-color:var(--accent)}
+button:disabled{opacity:.45;cursor:default}
+button.primary{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.bar button.swap{flex:0 0 auto;padding:7px 13px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-@media (max-width:700px){.grid{grid-template-columns:1fr}}
-.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column}
-textarea,.out{flex:1;min-height:200px;padding:14px;border:0;background:transparent;color:var(--ink);font:1.1rem/1.5 Georgia,serif;resize:vertical;outline:none;white-space:pre-wrap}
-.tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
-.tools .sp{flex:1}
-.tools button{padding:4px 10px;font-size:.85rem}
-.err{color:var(--err);min-height:1.5em;margin:8px 2px}
-.hist{margin-top:24px}
-.hist .head{display:flex;align-items:center;color:var(--muted)}
-.hist h2{font-size:1rem;font-weight:normal;margin:0;flex:1}
-.row{display:flex;gap:6px;margin-top:6px}
-.row .item{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row .del{padding:4px 10px}
-.auth{max-width:380px;margin:12vh auto 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:10px}
-.auth h2{margin:0 0 4px;font-size:1.2rem}
-.auth label{display:flex;flex-direction:column;gap:4px;font-size:.9rem;color:var(--muted)}
-.auth input{color:var(--ink)}
-.note{color:var(--accent);min-height:1.2em;font-size:.95rem}
-.banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.9rem}
-.banner input{flex:1;min-width:160px}
-a.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-decoration:none}
-.link{background:none;border:0;color:var(--accent);padding:0;text-decoration:underline;align-self:flex-start}
-@media (prefers-reduced-motion:no-preference){.busy{opacity:.6;transition:opacity .2s}}
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:var(--gap)}
+@media (max-width:700px){.panes{grid-template-columns:1fr}}
+.pane{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column;transition:border-color .15s}
+.pane.drop{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+textarea{width:100%;flex:1;min-height:var(--min-h);border:0;background:none;color:inherit;font:inherit;padding:var(--pad);resize:vertical;outline:none}
+.out{flex:1;min-height:var(--min-h);padding:var(--pad);white-space:pre-wrap;overflow-wrap:anywhere}
+.out:empty::before{content:attr(data-placeholder);color:var(--muted)}
+.foot{display:flex;gap:6px;align-items:center;padding:8px 10px;border-top:1px solid var(--line);color:var(--muted);font-size:.82rem;flex-wrap:wrap}
+.foot .sp{flex:1}
+.foot button{padding:4px 9px;font-size:.82rem}
+.foot button.live{background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+.msg{min-height:1.4em;color:var(--muted);font-size:.9rem;margin-top:8px}
+.msg.err{color:var(--err)}
+.msg.ok{color:var(--accent);font-weight:bold}
+
+/* Quiz Banner & Modal */
+.quiz-nudge{background:var(--panel);border:2px solid var(--accent);border-radius:12px;padding:12px 16px;margin-top:14px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;animation:popIn .25s ease}
+@keyframes popIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+.quiz-nudge .title{font-weight:bold;color:var(--accent)}
+.quiz-nudge .sp{flex:1}
+
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:8px}
+.quiz-choice{display:block;width:100%;text-align:left;padding:11px 14px;margin-bottom:8px;border-radius:10px;border:1px solid var(--line);background:var(--bg);font-size:.98rem;transition:all .12s}
+.quiz-choice:hover:not(:disabled){border-color:var(--accent);transform:translateX(3px)}
+.quiz-choice.correct{background:#16a34a;color:#fff;border-color:#16a34a;font-weight:bold}
+.quiz-choice.wrong{background:var(--err);color:#fff;border-color:var(--err)}
+.progress-bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:10px 0 16px}
+.progress-fill{height:100%;background:var(--accent);transition:width .25s ease}
+
+/* Phrasebook & Word Scramble */
+.phrase-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:10px;margin-top:10px}
+.phrase-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:4px}
+.phrase-card .cat{font-size:.72rem;text-transform:uppercase;letter-spacing:.5px;color:var(--accent);font-weight:bold}
+.phrase-card .native{font-size:1.1rem;font-weight:bold}
+.phrase-card .translit{font-size:.82rem;color:var(--muted);font-style:italic}
+.phrase-card .eng{font-size:.9rem}
+.phrase-card .p-acts{display:flex;gap:6px;margin-top:6px}
+.phrase-card .p-acts button{padding:3px 8px;font-size:.78rem}
+
+.scramble-tiles{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0;min-height:44px;padding:10px;border:1px dashed var(--line);border-radius:10px;background:var(--bg)}
+.tile{padding:6px 12px;border-radius:8px;background:var(--panel);border:1px solid var(--accent);color:var(--ink);font-weight:bold;cursor:pointer;user-select:none}
+.tile:hover{background:var(--accent);color:var(--accent-fg)}
+
+.history{margin-top:24px}
+.history h2{font-size:1rem;color:var(--muted);font-weight:normal;margin:0 0 8px;display:flex;align-items:center;gap:8px}
+.history h2 button{margin-left:auto;padding:2px 8px;font-size:.8rem}
+.item{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:6px;display:flex;gap:10px;align-items:baseline}
+.item.fav{border-color:var(--gold)}
+.item .pair{color:var(--muted);font-size:.78rem;white-space:nowrap}
+.item .txt{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.item button{border:0;background:none;color:var(--muted);padding:0 4px}
+.item button.star.active{color:var(--gold);font-size:1.05rem}
+.auth{max-width:380px;margin:48px auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px}
+.auth h2{margin:0 0 12px;font-size:1.3rem}
+.auth input{width:100%;margin-bottom:10px;padding:9px 11px}
+.auth button.primary{width:100%;padding:9px}
+.auth .note{color:var(--muted);font-size:.88rem;margin:0 0 12px}
+.auth .links{display:flex;justify-content:space-between;margin-top:12px;font-size:.88rem;gap:8px;flex-wrap:wrap}
+.link{border:0;background:none;color:var(--accent);padding:0;text-decoration:underline;font:inherit;cursor:pointer}
+.banner{background:var(--panel);border:1px solid var(--accent);border-radius:10px;padding:10px 12px;margin-bottom:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:.9rem}
+.banner input{flex:1;min-width:180px;padding:5px 9px}
+.banner .close{border:0;background:none;color:var(--muted);padding:0 4px;margin-left:auto}
+dialog{background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:0;max-width:440px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+.dlg{padding:18px 20px}
+.dlg h2{margin:0 0 12px;font-size:1.15rem;display:flex;align-items:center}
+.dlg h2 button{margin-left:auto;border:0;background:none;color:var(--muted);padding:0 4px;font-size:1.2rem}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;border-top:1px solid var(--line)}
+.row:first-of-type{border-top:0}
+.row .sub{display:block;color:var(--muted);font-size:.8rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;padding:5px 9px;font-size:.82rem}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--accent-fg)}
+.swatch-group{display:flex;gap:6px;flex-wrap:wrap}
+.swatch{width:24px;height:24px;border-radius:99px;border:2px solid transparent;padding:0;cursor:pointer}
+.swatch[aria-pressed=true]{border-color:var(--ink);transform:scale(1.1)}
+.hidden{display:none!important}
 </style>
 </head>
 <body>
 <main>
-  <section class="auth" id="auth" hidden>
+  <header>
+    <h1>Translator <span class="dialect-badge">Iraqi Arabic &amp; Global</span></h1>
+    <button class="xp-pill hidden" id="xpPill" title="Open Quiz & Progress">⭐ <span id="xpVal">0</span> XP · <span id="mileVal">0</span>/5 to Quiz</button>
+    <a id="adminLink" class="hidden" href="/admin" style="font-size:.9rem;color:var(--accent);text-decoration:none;border:1px solid var(--line);border-radius:8px;padding:5px 9px">Admin</a>
+    <button id="gearBtn" class="hidden" aria-label="Settings" title="Customize Appearance & Behavior">&#9881;</button>
+    <span id="who" style="color:var(--muted);font-size:.9rem"></span>
+    <button id="outBtn" class="hidden">Sign out</button>
+  </header>
+
+  <div class="msg" id="msg" role="status" aria-live="polite"></div>
+
+  <div class="banner hidden" id="emailBanner">
+    <span>Add an email so you can reset your password if you forget it:</span>
+    <input id="bannerEmail" type="email" placeholder="you@example.com" autocomplete="email">
+    <button class="primary" id="bannerSave">Save</button>
+    <button class="close" id="bannerClose" aria-label="Dismiss">&times;</button>
+  </div>
+
+  <!-- Auth Views -->
+  <section class="auth hidden" id="authBox">
     <h2 id="authTitle">Sign in</h2>
-    <label id="lUser"><span id="lUserText">Username or email</span><input id="user" autocomplete="username" autocapitalize="none"></label>
-    <label id="lEmail" hidden>Email<input id="email" type="email" autocomplete="email" autocapitalize="none"></label>
-    <label id="lPass">Password<input id="pass" type="password" autocomplete="current-password"></label>
-    <div class="note" id="authMsg" role="status"></div>
-    <div class="err" id="authErr" role="alert"></div>
-    <button class="primary" id="authGo">Sign in</button>
-    <button class="link" id="authToggle">Create an account</button>
-    <button class="link" id="forgotLink">Forgot password?</button>
-    <button class="link" id="resendLink" hidden>Resend confirmation email</button>
+    <p class="note hidden" id="authNote"></p>
+    <form id="authForm">
+      <input id="userIn" placeholder="Username or email" autocomplete="username" required>
+      <input id="emailIn" class="hidden" type="email" placeholder="Email address" autocomplete="email">
+      <input id="passIn" type="password" placeholder="Password" autocomplete="current-password" required>
+      <button class="primary" id="authSubmit" type="submit">Sign in</button>
+    </form>
+    <div class="links">
+      <button type="button" class="link" id="forgotLink">Forgot password?</button>
+      <button type="button" class="link hidden" id="resendLink">Resend confirmation</button>
+      <button type="button" class="link" id="toggleAuth">Create account</button>
+    </div>
   </section>
 
-  <section id="app" hidden>
-    <header>
-      <h1>Translator</h1>
-      <span class="who" id="who"></span>
-      <a class="btn" id="adminLink" href="/admin" hidden>Admin</a>
-      <button id="logout">Sign out</button>
-    </header>
-    <div class="banner" id="banner" hidden>
-      <span id="bannerText"></span>
-      <input id="newEmail" type="email" placeholder="you@example.com" autocapitalize="none"><button id="saveEmail">Add email</button>
+  <section class="auth hidden" id="recoverBox">
+    <h2 id="recTitle">Reset password</h2>
+    <p class="note" id="recNote"></p>
+    <form id="recForm">
+      <input id="recInput" required>
+      <button class="primary" id="recSubmit" type="submit">Send link</button>
+    </form>
+    <div class="links"><button type="button" class="link" id="backLogin">Back to sign in</button></div>
+  </section>
+
+  <!-- Main Logged-In App -->
+  <section id="appBox" class="hidden">
+    <nav class="nav-tabs" aria-label="Modes">
+      <button class="nav-tab active" data-tab="translate">🌐 Translator</button>
+      <button class="nav-tab" data-tab="quiz">🧠 Quiz Arena <span id="quizReadyBadge" class="hidden" style="background:var(--gold);color:#000;border-radius:99px;padding:0 6px;font-size:.72rem;font-weight:bold">READY!</span></button>
+      <button class="nav-tab" data-tab="phrases">💬 Phrasebook &amp; Scramble</button>
+    </nav>
+
+    <!-- 5-Translation Milestone Quiz Nudge Banner -->
+    <div class="quiz-nudge hidden" id="quizNudge">
+      <span>🎯</span>
+      <div>
+        <div class="title">5 Translations Completed! Ready for a Quick Quiz?</div>
+        <div style="font-size:.85rem;color:var(--muted)">Test yourself on 5 phrases (including your recent translations &amp; Iraqi Arabic) to earn bonus XP.</div>
+      </div>
+      <span class="sp"></span>
+      <button class="primary" id="startNudgeQuiz">Take 5-Question Quiz</button>
+      <button id="dismissNudge" style="border:0;background:none;color:var(--muted)">Later</button>
     </div>
-    <div class="bar">
-      <select id="src" aria-label="From language"></select>
-      <button id="swap" title="Swap languages" aria-label="Swap languages">⇄</button>
-      <select id="tgt" aria-label="To language"></select>
-    </div>
-    <div class="grid">
-      <div class="box">
-        <textarea id="text" placeholder="Type or paste text, or upload a voice clip"></textarea>
-        <div class="tools">
-          <button id="mic">Dictate</button><button id="up">Upload audio</button>
-          <input type="file" id="file" accept="audio/*,video/mp4,video/webm,.m4a,.opus" hidden>
-          <button id="spkIn">Listen</button>
-          <span class="sp"></span><span id="count">0</span>
+
+    <!-- TAB 1: TRANSLATOR -->
+    <div id="tab-translate">
+      <div class="bar">
+        <select id="src" aria-label="Source language"></select>
+        <button class="swap" id="swap" title="Swap languages" aria-label="Swap languages">&#8646;</button>
+        <select id="tgt" aria-label="Target language"></select>
+      </div>
+      <div class="panes">
+        <div class="pane" id="inPane">
+          <textarea id="input" placeholder="Type, paste, dictate, or drop an audio file..." aria-label="Text to translate"></textarea>
+          <div class="foot">
+            <button id="mic" title="Dictate with microphone">Mic</button>
+            <button id="upload" title="Transcribe an audio file (mp3, wav, m4a, ogg, webm)">Upload audio</button>
+            <input id="audioFile" type="file" accept="audio/*,video/mp4,video/webm" class="hidden">
+            <span class="sp"></span>
+            <span id="count">0</span>
+            <button id="clear" title="Clear text">Clear</button>
+          </div>
+        </div>
+        <div class="pane">
+          <div class="out" id="output" data-placeholder="Translation" role="region" aria-live="polite"></div>
+          <div class="foot">
+            <span id="detected"></span>
+            <span class="sp"></span>
+            <button id="listen" disabled>Listen</button>
+            <button id="copy" disabled>Copy</button>
+            <button id="go" class="primary">Translate</button>
+          </div>
         </div>
       </div>
-      <div class="box">
-        <div class="out" id="out" aria-live="polite"></div>
-        <div class="tools">
-          <button id="copy">Copy</button><button id="spkOut">Listen</button>
-          <span class="sp"></span><span id="det"></span>
-        </div>
+      <div class="history" id="histWrap">
+        <h2>Recent &amp; Starred <button id="clearHist">Clear unstarred</button></h2>
+        <div id="hist"></div>
       </div>
     </div>
-    <div class="err" id="err" role="alert"></div>
-    <section class="hist">
-      <div class="head"><h2>Your history</h2><button id="clearHist">Clear all</button></div>
-      <div id="hist"></div>
-    </section>
+
+    <!-- TAB 2: QUIZ ARENA -->
+    <div id="tab-quiz" class="hidden">
+      <div class="card" id="quizContainer">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h2 style="margin:0;font-size:1.25rem">5-Question Knowledge Check</h2>
+            <p style="margin:2px 0 0;color:var(--muted);font-size:.88rem">Auto-triggered every 5 translations, or play anytime to earn XP!</p>
+          </div>
+          <button class="primary" id="newQuizBtn">New 5-Question Quiz</button>
+        </div>
+        <div id="quizPlayArea" style="margin-top:16px"></div>
+      </div>
+    </div>
+
+    <!-- TAB 3: PHRASEBOOK & INTERACTIVE WORD SCRAMBLE -->
+    <div id="tab-phrases" class="hidden">
+      <div class="card" style="margin-bottom:16px">
+        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+          <div>
+            <h2 style="margin:0;font-size:1.15rem">🧩 Interactive Sentence Scramble</h2>
+            <p style="margin:2px 0 0;color:var(--muted);font-size:.85rem">Tap the shuffled words in the right order to rebuild the translation!</p>
+          </div>
+          <button id="nextScrambleBtn">Next Puzzle</button>
+        </div>
+        <div id="scrambleArea" style="margin-top:12px"></div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:10px;margin:16px 0 8px;flex-wrap:wrap">
+        <h2 style="margin:0;font-size:1.15rem;flex:1">📖 Built-in Iraqi Arabic &amp; Travel Phrasebook</h2>
+        <select id="phraseLangFilter" style="max-width:220px">
+          <option value="">All Languages</option>
+          <option value="ar-iq" selected>Arabic (Iraqi)</option>
+          <option value="ar">Arabic (Standard)</option>
+          <option value="es">Spanish</option>
+          <option value="fr">French</option>
+          <option value="de">German</option>
+          <option value="it">Italian</option>
+          <option value="pt">Portuguese</option>
+        </select>
+      </div>
+      <div class="phrase-grid" id="phraseGrid"></div>
+    </div>
   </section>
 </main>
+
+<!-- Customization & Settings Dialog -->
+<dialog id="settingsDlg" aria-labelledby="dlgTitle">
+  <div class="dlg">
+    <h2 id="dlgTitle">Customize &amp; Settings <button id="dlgClose" aria-label="Close">&times;</button></h2>
+    <div class="row">
+      <div>Theme</div>
+      <div class="seg" data-set="theme">
+        <button type="button" data-v="system">Auto</button>
+        <button type="button" data-v="light">Light</button>
+        <button type="button" data-v="dark">Dark</button>
+        <button type="button" data-v="midnight">Midnight</button>
+        <button type="button" data-v="sepia">Sepia</button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Accent Color</div>
+      <div class="swatch-group" data-set="accent">
+        <button type="button" class="swatch" data-v="teal" style="background:#0f6b5c" title="Teal"></button>
+        <button type="button" class="swatch" data-v="blue" style="background:#2563eb" title="Blue"></button>
+        <button type="button" class="swatch" data-v="purple" style="background:#7c3aed" title="Purple"></button>
+        <button type="button" class="swatch" data-v="emerald" style="background:#059669" title="Emerald"></button>
+        <button type="button" class="swatch" data-v="orange" style="background:#d97706" title="Amber"></button>
+        <button type="button" class="swatch" data-v="rose" style="background:#e11d48" title="Rose"></button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Font Style</div>
+      <div class="seg" data-set="font">
+        <button type="button" data-v="serif">Serif</button>
+        <button type="button" data-v="sans">Sans</button>
+        <button type="button" data-v="mono">Mono</button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Text Size</div>
+      <div class="seg" data-set="size">
+        <button type="button" data-v="s">S</button>
+        <button type="button" data-v="m">M</button>
+        <button type="button" data-v="l">L</button>
+        <button type="button" data-v="xl">XL</button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Layout Density</div>
+      <div class="seg" data-set="density">
+        <button type="button" data-v="compact">Compact</button>
+        <button type="button" data-v="comfortable">Normal</button>
+        <button type="button" data-v="spacious">Spacious</button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Arabic Dialect / Tone<span class="sub">Casual auto-applies Iraqi colloquial terms</span></div>
+      <div class="seg" data-set="register">
+        <button type="button" data-v="standard">Standard</button>
+        <button type="button" data-v="casual">Iraqi / Casual</button>
+        <button type="button" data-v="formal">Formal</button>
+      </div>
+    </div>
+    <div class="row">
+      <div>Quiz every 5 translations<span class="sub">Prompt a 5-question quiz every 5 new translations</span></div>
+      <input type="checkbox" id="optQuizPrompts" checked>
+    </div>
+    <div class="row">
+      <div>Fun sound effects<span class="sub">Gentle audio chimes on quiz answers &amp; milestones</span></div>
+      <input type="checkbox" id="optSoundFx" checked>
+    </div>
+    <div class="row">
+      <div>Translate as I type<span class="sub">Pause briefly after typing to translate</span></div>
+      <input type="checkbox" id="optAuto">
+    </div>
+    <div class="row">
+      <div>Auto-copy result<span class="sub">Copy translation to clipboard automatically</span></div>
+      <input type="checkbox" id="optAutoCopy">
+    </div>
+    <div class="row">
+      <div>Speech Speed <span id="rateLbl" style="color:var(--accent);font-weight:bold">1.0x</span></div>
+      <input type="range" id="optRate" min="0.5" max="1.5" step="0.1" value="1.0" style="width:140px">
+    </div>
+    <div class="row">
+      <div>Save history<span class="sub">Keep translations on your account</span></div>
+      <input type="checkbox" id="optHist" checked>
+    </div>
+  </div>
+</dialog>
+
 <script>
 const $ = id => document.getElementById(id);
-const src = $("src"), tgt = $("tgt"), text = $("text"), out = $("out");
-let names = {}, cfg, ctrl, timer, detected = "", signup = false, ready = false;
+const DEFAULTS = {
+  theme: "system", accent: "teal", font: "serif", size: "m", density: "comfortable",
+  register: "standard", auto: false, auto_copy: false, save_history: true,
+  quiz_prompts: true, sound_fx: true, speech_rate: 1.0, debounce_ms: 600
+};
+let cfg = {languages: [], max_chars: 5000, signup_open: true};
+let user = null, mode = "login", recMode = "forgot", resetToken = null, timer = null, seq = 0, busy = false, rec = null;
+let prefs = {...DEFAULTS};
+let phrasesCache = [];
+let quizState = {questions: [], idx: 0, score: 0, answered: false};
+let scrambleState = {targetWords: [], pool: [], picked: [], prompt: ""};
 
-const api = (path, opts = {}) => fetch(path, {...opts, headers: {"X-Requested-With": "fetch", ...(opts.headers || {})}});
-const post = (path, obj) => api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(obj || {})});
+const api = (p, o = {}) => {
+  const headers = {"X-Requested-With": "fetch", ...(o.headers || {})};
+  if (o.body && !(o.body instanceof FormData)) headers["Content-Type"] = "application/json";
+  return fetch(p, {...o, headers});
+};
 
-/* ---------- auth ---------- */
-let mode = "signin", resetToken = null, unverifiedEmail = "";
-function showAuth() { $("app").hidden = true; $("auth").hidden = false; $("pass").value = ""; }
-function setMode(m, msg = "", err = "") {
-  mode = m;
-  $("authTitle").textContent = {signin: "Sign in", signup: "Create account", forgot: "Reset password", reset: "Choose a new password"}[m];
-  $("authGo").textContent = {signin: "Sign in", signup: "Create account", forgot: "Send reset link", reset: "Save password"}[m];
-  $("lUser").hidden = m === "forgot" || m === "reset";
-  $("lEmail").hidden = !(m === "signup" || m === "forgot");
-  $("lPass").hidden = m === "forgot";
-  $("lUserText").textContent = m === "signup" ? "Username" : "Username or email";
-  $("pass").autocomplete = m === "signin" ? "current-password" : "new-password";
-  $("authToggle").hidden = m === "reset" || (m === "signin" && !cfg.signup_open && !cfg.first_run);
-  $("authToggle").textContent = m === "signin" ? "Create an account" : "Back to sign in";
-  $("forgotLink").hidden = m !== "signin";
-  $("resendLink").hidden = true;
-  $("authMsg").textContent = msg; $("authErr").textContent = err;
+const say = (t, type = "") => { $("msg").textContent = t; $("msg").className = "msg" + (type ? " " + type : ""); };
+const show = (el, on) => el.classList.toggle("hidden", !on);
+
+// Web Audio API subtle chimes for fun feedback
+function chime(type) {
+  if (!prefs.sound_fx) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    if (type === "ok") {
+      osc.frequency.setValueAtTime(523.25, now);
+      osc.frequency.setValueAtTime(659.25, now + 0.09);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now); osc.stop(now + 0.25);
+    } else if (type === "bad") {
+      osc.frequency.setValueAtTime(240, now);
+      osc.frequency.setValueAtTime(190, now + 0.1);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.start(now); osc.stop(now + 0.25);
+    } else if (type === "win") {
+      [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => {
+        const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+        o2.connect(g2); g2.connect(ctx.destination);
+        o2.frequency.setValueAtTime(f, now + i * 0.08);
+        g2.gain.setValueAtTime(0.07, now + i * 0.08);
+        g2.gain.exponentialRampToValueAtTime(0.001, now + i * 0.08 + 0.25);
+        o2.start(now + i * 0.08); o2.stop(now + i * 0.08 + 0.25);
+      });
+    }
+  } catch {}
 }
-$("authToggle").onclick = () => setMode(mode === "signin" ? "signup" : "signin");
-$("forgotLink").onclick = () => setMode("forgot");
-async function submitAuth() {
-  $("authErr").textContent = ""; $("authMsg").textContent = "";
-  const body = {signin: () => ["/api/login", {username: $("user").value, password: $("pass").value}],
-    signup: () => ["/api/register", {username: $("user").value, email: $("email").value, password: $("pass").value}],
-    forgot: () => ["/api/forgot", {email: $("email").value}],
-    reset: () => ["/api/reset", {token: resetToken, password: $("pass").value}]}[mode]();
-  const r = await post(body[0], body[1]);
+
+function updateStatsUI() {
+  if (!user) return;
+  const xp = user.xp || 0;
+  const mile = (user.translate_milestone || 0) % 5;
+  $("xpVal").textContent = xp;
+  $("mileVal").textContent = mile;
+  show($("xpPill"), true);
+}
+
+function applyPrefs(p) {
+  prefs = {...DEFAULTS, ...p};
+  const root = document.documentElement;
+  prefs.theme === "system" ? root.removeAttribute("data-theme") : (root.dataset.theme = prefs.theme);
+  prefs.accent === "teal" ? root.removeAttribute("data-accent") : (root.dataset.accent = prefs.accent);
+  prefs.font === "serif" ? root.removeAttribute("data-font") : (root.dataset.font = prefs.font);
+  prefs.size === "m" ? root.removeAttribute("data-size") : (root.dataset.size = prefs.size);
+  prefs.density === "comfortable" ? root.removeAttribute("data-density") : (root.dataset.density = prefs.density);
+
+  document.querySelectorAll("[data-set]").forEach(g =>
+    g.querySelectorAll("button").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === prefs[g.dataset.set])));
+  $("optAuto").checked = !!prefs.auto;
+  $("optAutoCopy").checked = !!prefs.auto_copy;
+  $("optHist").checked = prefs.save_history !== false;
+  $("optQuizPrompts").checked = prefs.quiz_prompts !== false;
+  $("optSoundFx").checked = prefs.sound_fx !== false;
+  $("optRate").value = prefs.speech_rate || 1.0;
+  $("rateLbl").textContent = (prefs.speech_rate || 1.0).toFixed(1) + "x";
+  show($("histWrap"), prefs.save_history !== false);
+}
+
+async function setPref(patch) {
+  applyPrefs({...prefs, ...patch});
+  if (user) {
+    const r = await api("/api/settings", {method: "POST", body: JSON.stringify(prefs)});
+    if (r.ok) { const d = await r.json(); user.settings = d.settings; }
+  }
+}
+
+function switchTab(tabName) {
+  document.querySelectorAll(".nav-tab").forEach(b => b.classList.toggle("active", b.dataset.tab === tabName));
+  ["translate", "quiz", "phrases"].forEach(t => show($("tab-" + t), t === tabName));
+  if (tabName === "quiz") {
+    show($("quizNudge"), false);
+    show($("quizReadyBadge"), false);
+    if (!quizState.questions.length || quizState.idx >= quizState.questions.length) startQuiz();
+  } else if (tabName === "phrases") {
+    loadPhrases();
+  }
+}
+
+document.querySelectorAll(".nav-tab").forEach(b => b.onclick = () => switchTab(b.dataset.tab));
+$("xpPill").onclick = () => switchTab("quiz");
+$("startNudgeQuiz").onclick = () => switchTab("quiz");
+$("dismissNudge").onclick = () => show($("quizNudge"), false);
+
+function setAuthMode(m) {
+  mode = m; say("");
+  const reg = m === "register";
+  $("authTitle").textContent = reg ? (cfg.first_run ? "Create the admin account" : "Create account") : "Sign in";
+  $("authSubmit").textContent = reg ? "Create account" : "Sign in";
+  $("toggleAuth").textContent = reg ? "Already have an account? Sign in" : "Create account";
+  $("passIn").autocomplete = reg ? "new-password" : "current-password";
+  show($("emailIn"), reg); $("emailIn").required = reg;
+  show($("forgotLink"), !reg);
+  show($("resendLink"), false);
+  show($("authNote"), reg && cfg.first_run);
+  $("authNote").textContent = "You're the first person here, so this account becomes the admin.";
+  show($("toggleAuth"), reg || cfg.signup_open || cfg.first_run);
+}
+
+function openRecover(m, prefill = "") {
+  recMode = m; say("");
+  show($("authBox"), false); show($("recoverBox"), true);
+  const inp = $("recInput"); inp.value = prefill;
+  if (m === "reset") {
+    $("recTitle").textContent = "Choose a new password";
+    $("recNote").textContent = "Enter a new password (at least 8 characters).";
+    inp.type = "password"; inp.placeholder = "New password"; inp.autocomplete = "new-password";
+    $("recSubmit").textContent = "Save new password";
+  } else if (m === "resend") {
+    $("recTitle").textContent = "Resend confirmation email";
+    $("recNote").textContent = "Enter the email address you signed up with.";
+    inp.type = "email"; inp.placeholder = "Email address"; inp.autocomplete = "email";
+    $("recSubmit").textContent = "Send confirmation link";
+  } else {
+    $("recTitle").textContent = "Reset password";
+    $("recNote").textContent = "Enter your email address and we'll send you a reset link.";
+    inp.type = "email"; inp.placeholder = "Email address"; inp.autocomplete = "email";
+    $("recSubmit").textContent = "Send reset link";
+  }
+  inp.focus();
+}
+
+function fillLanguages() {
+  const opts = cfg.languages.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
+  $("src").innerHTML = `<option value="auto">Detect language</option>` + opts;
+  $("tgt").innerHTML = opts;
+}
+
+function render() {
+  const loggedIn = !!user;
+  show($("authBox"), !loggedIn && !resetToken);
+  show($("recoverBox"), !loggedIn && !!resetToken);
+  show($("appBox"), loggedIn);
+  show($("outBtn"), loggedIn);
+  show($("gearBtn"), loggedIn);
+  show($("xpPill"), loggedIn);
+  show($("adminLink"), loggedIn && user.is_admin);
+  $("who").textContent = loggedIn ? user.username : "";
+  if (loggedIn) {
+    applyPrefs(user.settings || {});
+    updateStatsUI();
+    show($("emailBanner"), !user.email && !user.pending_email && !sessionStorage.getItem("hideEmailBanner"));
+    fillLanguages();
+    if ([...$("src").options].some(o => o.value === user.source)) $("src").value = user.source;
+    const defTgt = cfg.languages.some(l => l.code === "ar-iq") && user.target === "es" ? "ar-iq" : user.target;
+    if ([...$("tgt").options].some(o => o.value === defTgt)) $("tgt").value = defTgt;
+    else if (cfg.languages[0]) $("tgt").value = cfg.languages[0].code;
+    loadHistory();
+    loadPhrases();
+  } else {
+    applyPrefs({});
+    show($("emailBanner"), false);
+    if (resetToken) openRecover("reset");
+    else setAuthMode(cfg.first_run ? "register" : "login");
+  }
+}
+
+$("toggleAuth").onclick = () => setAuthMode(mode === "login" ? "register" : "login");
+$("forgotLink").onclick = () => openRecover("forgot");
+$("resendLink").onclick = () => openRecover("resend", $("resendLink").dataset.email || "");
+$("backLogin").onclick = () => { resetToken = null; show($("recoverBox"), false); show($("authBox"), true); setAuthMode("login"); };
+
+$("authForm").onsubmit = async e => {
+  e.preventDefault(); say("");
+  const payload = {username: $("userIn").value, password: $("passIn").value};
+  if (mode === "register") payload.email = $("emailIn").value;
+  const r = await api("/api/" + mode, {method: "POST", body: JSON.stringify(payload)});
   const d = await r.json();
   if (!r.ok) {
-    $("authErr").textContent = d.error;
-    if (d.unverified) { unverifiedEmail = d.unverified; $("resendLink").hidden = false; }
+    say(d.error || "Could not sign in.", "err");
+    if (d.unverified) { $("resendLink").dataset.email = d.unverified; show($("resendLink"), true); }
     return;
   }
-  if (d.user) return showApp(d.user);
-  if (mode === "reset") resetToken = null;
-  setMode("signin", d.message || "");
-}
-$("authGo").onclick = submitAuth;
-$("pass").addEventListener("keydown", e => { if (e.key === "Enter") submitAuth(); });
-$("resendLink").onclick = async () => {
-  const d = await (await post("/api/resend", {email: unverifiedEmail})).json();
-  $("authErr").textContent = ""; $("authMsg").textContent = d.message || d.error || "";
-};
-$("logout").onclick = async () => { await post("/api/logout"); text.value = ""; out.textContent = ""; showAuth(); setMode("signin"); };
-$("saveEmail").onclick = async () => {
-  const r = await post("/api/email", {email: $("newEmail").value}); const d = await r.json();
-  $("bannerText").textContent = d.message || d.error;
-  if (r.ok) { $("newEmail").hidden = true; $("saveEmail").hidden = true; }
+  $("passIn").value = "";
+  if (d.pending) { setAuthMode("login"); say(d.message, "ok"); return; }
+  user = d.user; render();
 };
 
-/* ---------- app ---------- */
-function showApp(user) {
-  $("auth").hidden = true; $("app").hidden = false;
-  $("who").textContent = user.username;
-  $("adminLink").hidden = !user.is_admin;
-  const needEmail = !user.email && !user.pending_email;
-  $("banner").hidden = !(needEmail || user.pending_email);
-  $("newEmail").hidden = $("saveEmail").hidden = !needEmail;
-  $("bannerText").textContent = needEmail ? "Add an email so you can reset your password:" : `Check ${user.pending_email} for a confirmation link.`;
-  if (!ready) {
-    const opts = cfg.languages.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
-    src.innerHTML = '<option value="auto">Detect language</option>' + opts;
-    tgt.innerHTML = opts; ready = true;
+$("recForm").onsubmit = async e => {
+  e.preventDefault(); say("");
+  const v = $("recInput").value;
+  const [url, body] = recMode === "reset" ? ["/api/reset", {token: resetToken, password: v}]
+                    : recMode === "resend" ? ["/api/resend", {email: v}]
+                    : ["/api/forgot", {email: v}];
+  const r = await api(url, {method: "POST", body: JSON.stringify(body)});
+  const d = await r.json();
+  if (!r.ok) { say(d.error || "Something went wrong.", "err"); return; }
+  resetToken = null; $("recInput").value = "";
+  show($("recoverBox"), false); show($("authBox"), true); setAuthMode("login");
+  say(d.message, "ok");
+};
+
+$("outBtn").onclick = async () => { await api("/api/logout", {method: "POST"}); user = null; $("output").textContent = ""; render(); };
+
+$("bannerSave").onclick = async () => {
+  const r = await api("/api/email", {method: "POST", body: JSON.stringify({email: $("bannerEmail").value})});
+  const d = await r.json();
+  say(d.message || d.error || "", r.ok ? "ok" : "err");
+  if (r.ok) { user.pending_email = $("bannerEmail").value; show($("emailBanner"), false); }
+};
+$("bannerClose").onclick = () => { sessionStorage.setItem("hideEmailBanner", "1"); show($("emailBanner"), false); };
+
+function savePrefs() {
+  api("/api/prefs", {method: "POST", body: JSON.stringify({source: $("src").value, target: $("tgt").value})});
+}
+
+function setBusy(on) {
+  busy = on;
+  for (const id of ["go", "mic", "upload", "swap"]) $(id).disabled = on;
+}
+
+async function translate(save) {
+  const text = $("input").value.trim();
+  if (!text) { $("output").textContent = ""; $("detected").textContent = ""; $("copy").disabled = $("listen").disabled = true; return; }
+  const id = ++seq;
+  say("Translating...");
+  const r = await api("/api/translate", {
+    method: "POST",
+    body: JSON.stringify({text, source: $("src").value, target: $("tgt").value, register: prefs.register, save})
+  });
+  if (id !== seq) return;
+  const d = await r.json();
+  if (!r.ok) { say(d.error || "Translation failed.", "err"); return; }
+  say("");
+  $("output").textContent = d.translation;
+  const detName = (cfg.languages.find(l => l.code === d.detected) || {}).name || d.detected;
+  $("detected").textContent = $("src").value === "auto" ? "Detected: " + detName : "";
+  $("copy").disabled = $("listen").disabled = false;
+
+  if (prefs.auto_copy && d.translation) {
+    navigator.clipboard?.writeText(d.translation).catch(() => {});
   }
-  src.value = user.source === "auto" || names[user.source] ? user.source : "auto";
-  tgt.value = names[user.target] ? user.target : cfg.languages[0].code;
-  text.maxLength = cfg.max_chars;
-  loadHist();
+
+  if (typeof d.xp === "number") user.xp = d.xp;
+  if (typeof d.translate_milestone === "number") {
+    const prevMile = user.translate_milestone || 0;
+    user.translate_milestone = d.translate_milestone;
+    updateStatsUI();
+
+    // Check if user hit a multiple of 5 new translations!
+    if (save && d.translate_milestone > prevMile && d.translate_milestone % 5 === 0 && prefs.quiz_prompts !== false) {
+      chime("win");
+      show($("quizNudge"), true);
+      show($("quizReadyBadge"), true);
+    }
+  }
+
+  if (save && prefs.save_history !== false) loadHistory();
 }
 
-async function translate() {
-  clearTimeout(timer);
-  $("count").textContent = text.value.length;
-  if (!text.value.trim()) { out.textContent = ""; $("det").textContent = ""; $("err").textContent = ""; return; }
-  ctrl?.abort(); ctrl = new AbortController();
-  out.classList.add("busy");
-  try {
-    const r = await post2("/api/translate", {text: text.value, source: src.value, target: tgt.value}, ctrl.signal);
-    if (r.status === 401) return showAuth();
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Request failed");
-    out.textContent = d.translation; detected = d.detected;
-    $("det").textContent = src.value === "auto" ? `Detected: ${names[d.detected] || d.detected}` : "";
-    $("err").textContent = "";
-    loadHist();
-  } catch (e) {
-    if (e.name !== "AbortError") $("err").textContent = e.message;
-  } finally { out.classList.remove("busy"); }
-}
-const post2 = (p, o, signal) => api(p, {method: "POST", signal, headers: {"Content-Type": "application/json"}, body: JSON.stringify(o)});
-const queue = () => { clearTimeout(timer); timer = setTimeout(translate, 700); };
+function esc(s) { return s.replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-text.addEventListener("input", queue);
-[src, tgt].forEach(s => s.addEventListener("change", () => {
-  post("/api/prefs", {source: src.value, target: tgt.value}); translate();
-}));
-$("swap").onclick = () => {
-  const from = src.value === "auto" ? detected : src.value;
-  if (!from || !names[from]) return;
-  const t = tgt.value; src.value = t; tgt.value = from;
-  if (out.textContent) text.value = out.textContent;
-  post("/api/prefs", {source: src.value, target: tgt.value}); translate();
-};
-$("copy").onclick = () => navigator.clipboard?.writeText(out.textContent);
-
-function speak(t, lang) {
-  if (!t || !("speechSynthesis" in window)) return;
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(t); u.lang = lang; speechSynthesis.speak(u);
-}
-$("spkOut").onclick = () => speak(out.textContent, tgt.value);
-$("spkIn").onclick = () => speak(text.value, src.value === "auto" ? detected : src.value);
-
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-if (!SR) $("mic").style.display = "none";
-else $("mic").onclick = () => {
-  const r = new SR(); r.lang = src.value === "auto" ? "" : src.value;
-  r.onresult = e => { text.value = e.results[0][0].transcript; translate(); };
-  r.onerror = e => $("err").textContent = "Microphone: " + e.error + " (needs HTTPS or localhost)";
-  r.start();
-};
-
-async function uploadAudio(file) {
-  if (!file) return;
-  $("err").textContent = ""; out.textContent = "Transcribing…"; out.classList.add("busy");
-  const fd = new FormData(); fd.append("audio", file);
-  if (src.value !== "auto") fd.append("language", src.value);
-  try {
-    const r = await api("/api/transcribe", {method: "POST", body: fd});
-    if (r.status === 401) return showAuth();
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error || "Transcription failed");
-    text.value = d.text;
-    if (names[d.language]) src.value = d.language;
-    translate();
-  } catch (e) { $("err").textContent = e.message; out.textContent = ""; }
-  finally { out.classList.remove("busy"); }
-}
-$("up").onclick = () => $("file").click();
-$("file").onchange = e => { uploadAudio(e.target.files[0]); e.target.value = ""; };
-text.addEventListener("dragover", e => e.preventDefault());
-text.addEventListener("drop", e => {
-  const f = e.dataTransfer.files[0];
-  if (f) { e.preventDefault(); uploadAudio(f); }
-});
-
-/* ---------- history (stored in the server database) ---------- */
-async function loadHist() {
+async function loadHistory() {
   const r = await api("/api/history");
   if (!r.ok) return;
   const {items} = await r.json();
   const box = $("hist"); box.innerHTML = "";
-  items.forEach(x => {
-    const row = document.createElement("div"); row.className = "row";
-    const b = document.createElement("button"); b.className = "item";
-    b.textContent = `${x.original}  →  ${x.translation}`;
-    b.onclick = () => { text.value = x.original; src.value = names[x.source] ? x.source : "auto"; tgt.value = x.target; translate(); };
-    const d = document.createElement("button"); d.className = "del"; d.textContent = "Remove"; d.setAttribute("aria-label", "Remove from history");
-    d.onclick = async () => { await api("/api/history/" + x.id, {method: "DELETE"}); loadHist(); };
-    row.append(b, d); box.appendChild(row);
+  items.forEach(it => {
+    const row = document.createElement("div"); row.className = "item" + (it.is_favorite ? " fav" : "");
+    row.innerHTML = `<button class="star ${it.is_favorite ? "active" : ""}" title="Star favorite" aria-label="Star">${it.is_favorite ? "★" : "☆"}</button>`
+      + `<span class="pair">${esc(it.source)} &rarr; ${esc(it.target)}</span>`
+      + `<span class="txt"><strong>${esc(it.original)}</strong> &mdash; ${esc(it.translation)}</span>`
+      + `<button class="del" aria-label="Delete">&times;</button>`;
+    row.querySelector(".star").onclick = async () => {
+      await api("/api/history/" + it.id + "/favorite", {method: "POST"});
+      loadHistory();
+    };
+    row.querySelector(".txt").onclick = () => {
+      if ([...$("src").options].some(o => o.value === it.source)) $("src").value = it.source;
+      if ([...$("tgt").options].some(o => o.value === it.target)) $("tgt").value = it.target;
+      $("input").value = it.original; $("output").textContent = it.translation;
+      $("copy").disabled = $("listen").disabled = false; updateCount();
+    };
+    row.querySelector(".del").onclick = async () => { await api("/api/history/" + it.id, {method: "DELETE"}); row.remove(); };
+    box.append(row);
   });
 }
-$("clearHist").onclick = async () => { if (confirm("Delete all of your history?")) { await api("/api/history", {method: "DELETE"}); loadHist(); } };
 
-/* ---------- boot ---------- */
+function updateCount() { $("count").textContent = $("input").value.length + " / " + cfg.max_chars; }
+
+$("input").oninput = () => {
+  updateCount();
+  clearTimeout(timer);
+  if (prefs.auto) timer = setTimeout(() => translate(false), prefs.debounce_ms || 600);
+};
+$("input").onkeydown = e => { if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); translate(true); } };
+$("go").onclick = () => translate(true);
+$("src").onchange = () => { savePrefs(); if ($("input").value.trim()) translate(false); };
+$("tgt").onchange = () => { savePrefs(); if ($("input").value.trim()) translate(false); };
+$("swap").onclick = () => {
+  if ($("src").value === "auto") return;
+  [$("src").value, $("tgt").value] = [$("tgt").value, $("src").value];
+  if ($("output").textContent) { $("input").value = $("output").textContent; updateCount(); }
+  savePrefs(); translate(false);
+};
+$("clear").onclick = () => { $("input").value = ""; updateCount(); translate(false); $("input").focus(); };
+$("copy").onclick = async () => {
+  await navigator.clipboard.writeText($("output").textContent);
+  say("Copied to clipboard.", "ok"); setTimeout(() => say(""), 1500);
+};
+$("listen").onclick = () => {
+  if (!("speechSynthesis" in window)) { say("Speech playback isn't supported in this browser.", "err"); return; }
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance($("output").textContent);
+  u.lang = $("tgt").value === "ar-iq" ? "ar-IQ" : $("tgt").value;
+  u.rate = prefs.speech_rate || 1.0;
+  speechSynthesis.speak(u);
+};
+$("clearHist").onclick = async () => { await api("/api/history", {method: "DELETE"}); loadHistory(); };
+
+// ---------------------------------------------------------------- QUIZ ENGINE
+async function startQuiz() {
+  const area = $("quizPlayArea");
+  area.innerHTML = `<p style="color:var(--muted)">Generating 5 personalized questions...</p>`;
+  const r = await api("/api/quiz");
+  if (!r.ok) { area.innerHTML = `<p class="msg err">Could not load quiz.</p>`; return; }
+  const d = await r.json();
+  quizState = {questions: d.questions || [], idx: 0, score: 0, answered: false};
+  renderQuizQuestion();
+}
+
+function renderQuizQuestion() {
+  const area = $("quizPlayArea");
+  const {questions, idx, score} = quizState;
+  if (!questions.length) {
+    area.innerHTML = `<p>Translate a few phrases first to unlock personalized questions!</p>`;
+    return;
+  }
+  if (idx >= questions.length) {
+    finishQuiz();
+    return;
+  }
+  const q = questions[idx];
+  const pct = Math.round((idx / questions.length) * 100);
+  area.innerHTML = `
+    <div style="display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted)">
+      <span>Question ${idx + 1} of ${questions.length} · <strong style="color:var(--accent)">${esc(q.lang_label)}</strong></span>
+      <span>Score: <strong>${score}</strong></span>
+    </div>
+    <div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div>
+    <div style="font-size:1.25rem;font-weight:bold;margin:12px 0 16px;padding:14px;background:var(--bg);border-radius:10px;border:1px solid var(--line)">
+      ${esc(q.prompt)}
+      ${q.from_history ? `<span style="display:block;font-size:.75rem;font-weight:normal;color:var(--accent);margin-top:4px">★ From your recent translations</span>` : ""}
+    </div>
+    <div id="quizChoices"></div>
+    <div id="quizNextRow" style="margin-top:12px;display:flex;justify-content:flex-end"></div>
+  `;
+  const choicesBox = $("quizChoices");
+  q.choices.forEach(choice => {
+    const btn = document.createElement("button");
+    btn.className = "quiz-choice";
+    btn.textContent = choice;
+    btn.onclick = () => {
+      if (quizState.answered) return;
+      quizState.answered = true;
+      const isRight = choice === q.answer;
+      if (isRight) {
+        quizState.score++;
+        btn.classList.add("correct");
+        chime("ok");
+      } else {
+        btn.classList.add("wrong");
+        chime("bad");
+        [...choicesBox.children].forEach(b => { if (b.textContent === q.answer) b.classList.add("correct"); });
+      }
+      [...choicesBox.children].forEach(b => b.disabled = true);
+      const nextBtn = document.createElement("button");
+      nextBtn.className = "primary";
+      nextBtn.textContent = idx + 1 < questions.length ? "Next Question →" : "See Results 🎉";
+      nextBtn.onclick = () => { quizState.idx++; quizState.answered = false; renderQuizQuestion(); };
+      $("quizNextRow").append(nextBtn);
+    };
+    choicesBox.append(btn);
+  });
+}
+
+async function finishQuiz() {
+  const area = $("quizPlayArea");
+  const {score, questions} = quizState;
+  chime("win");
+  const r = await api("/api/quiz/submit", {method: "POST", body: JSON.stringify({score})});
+  const d = r.ok ? await r.json() : {earned_xp: score * 20, xp: (user.xp || 0) + score * 20};
+  if (typeof d.xp === "number") user.xp = d.xp;
+  updateStatsUI();
+
+  const trophy = score === 5 ? "🏆 Perfect Score!" : score >= 3 ? "🌟 Great Job!" : "💪 Keep Practicing!";
+  area.innerHTML = `
+    <div style="text-align:center;padding:16px 8px">
+      <div style="font-size:2rem;margin-bottom:6px">${trophy}</div>
+      <div style="font-size:1.2rem;font-weight:bold">You scored ${score} out of ${questions.length}</div>
+      <div style="color:var(--accent);font-weight:bold;margin:8px 0 18px">+${d.earned_xp} XP earned! (Total: ${user.xp} XP)</div>
+      <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+        <button class="primary" id="playAgainQuiz">Play Another 5-Question Round</button>
+        <button id="backToTransBtn">Back to Translator</button>
+      </div>
+    </div>
+  `;
+  $("playAgainQuiz").onclick = () => startQuiz();
+  $("backToTransBtn").onclick = () => switchTab("translate");
+}
+
+$("newQuizBtn").onclick = () => startQuiz();
+
+// ---------------------------------------------------------------- PHRASEBOOK & SCRAMBLE GAME
+async function loadPhrases() {
+  const lang = $("phraseLangFilter").value;
+  const r = await api("/api/phrases?lang=" + encodeURIComponent(lang));
+  if (!r.ok) return;
+  const {items} = await r.json();
+  phrasesCache = items;
+  const grid = $("phraseGrid"); grid.innerHTML = "";
+  items.forEach(p => {
+    const card = document.createElement("div"); card.className = "phrase-card";
+    card.innerHTML = `
+      <span class="cat">${esc(p.category)}</span>
+      <div class="native">${esc(p.phrase)}</div>
+      <div class="translit">${esc(p.translit)}</div>
+      <div class="eng">${esc(p.english)}</div>
+      <div class="p-acts">
+        <button class="use-btn">Use in Translator</button>
+        <button class="speak-btn">🔊 Speak</button>
+      </div>
+    `;
+    card.querySelector(".use-btn").onclick = () => {
+      if ([...$("src").options].some(o => o.value === p.lang)) $("src").value = p.lang;
+      if ([...$("tgt").options].some(o => o.value === "en")) $("tgt").value = "en";
+      $("input").value = p.phrase;
+      updateCount();
+      switchTab("translate");
+      translate(false);
+    };
+    card.querySelector(".speak-btn").onclick = () => {
+      if (!("speechSynthesis" in window)) return;
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(p.phrase);
+      u.lang = p.lang === "ar-iq" ? "ar-IQ" : p.lang;
+      u.rate = prefs.speech_rate || 1.0;
+      speechSynthesis.speak(u);
+    };
+    grid.append(card);
+  });
+  initScramble();
+}
+
+function initScramble() {
+  const area = $("scrambleArea");
+  const candidates = phrasesCache.filter(p => p.english.split(" ").length >= 3);
+  if (!candidates.length) { area.innerHTML = ""; return; }
+  const item = candidates[Math.floor(Math.random() * candidates.length)];
+  const words = item.english.replace(/[?.!,]/g, "").split(/\s+/).filter(Boolean);
+  const shuffled = [...words].sort(() => Math.random() - 0.5);
+  scrambleState = {targetWords: words, pool: shuffled, picked: [], prompt: item.phrase, translit: item.translit};
+  renderScramble();
+}
+
+function renderScramble() {
+  const area = $("scrambleArea");
+  const {targetWords, pool, picked, prompt, translit} = scrambleState;
+  const solved = picked.length === targetWords.length && picked.join(" ").toLowerCase() === targetWords.join(" ").toLowerCase();
+
+  area.innerHTML = `
+    <div style="font-size:1.15rem;font-weight:bold">${esc(prompt)}</div>
+    <div style="font-size:.82rem;color:var(--muted);font-style:italic;margin-bottom:8px">${esc(translit || "")}</div>
+    <div class="scramble-tiles" id="pickedTiles">${picked.length ? "" : '<span style="color:var(--muted);font-size:.85rem">Tap words below to build the English translation...</span>'}</div>
+    <div class="scramble-tiles" id="poolTiles" style="border-style:solid"></div>
+    <div id="scrambleStatus" style="font-weight:bold;color:var(--accent)">${solved ? "🎉 Spot on! Nice job!" : ""}</div>
+  `;
+
+  picked.forEach((w, i) => {
+    const t = document.createElement("span"); t.className = "tile"; t.textContent = w;
+    t.onclick = () => {
+      if (solved) return;
+      scrambleState.picked.splice(i, 1);
+      scrambleState.pool.push(w);
+      renderScramble();
+    };
+    $("pickedTiles").append(t);
+  });
+
+  pool.forEach((w, i) => {
+    const t = document.createElement("span"); t.className = "tile"; t.textContent = w;
+    t.onclick = () => {
+      scrambleState.pool.splice(i, 1);
+      scrambleState.picked.push(w);
+      const nowSolved = scrambleState.picked.length === targetWords.length &&
+        scrambleState.picked.join(" ").toLowerCase() === targetWords.join(" ").toLowerCase();
+      if (nowSolved) chime("win");
+      renderScramble();
+    };
+    $("poolTiles").append(t);
+  });
+}
+
+$("phraseLangFilter").onchange = () => loadPhrases();
+$("nextScrambleBtn").onclick = () => initScramble();
+
+// ---------------------------------------------------------------- SETTINGS & AUDIO
+$("gearBtn").onclick = () => $("settingsDlg").showModal();
+$("dlgClose").onclick = () => $("settingsDlg").close();
+$("settingsDlg").onclick = e => { if (e.target === $("settingsDlg")) $("settingsDlg").close(); };
+document.querySelectorAll("[data-set]").forEach(g =>
+  g.querySelectorAll("button").forEach(b => b.onclick = () => setPref({[g.dataset.set]: b.dataset.v})));
+$("optAuto").onchange = e => setPref({auto: e.target.checked});
+$("optAutoCopy").onchange = e => setPref({auto_copy: e.target.checked});
+$("optHist").onchange = e => setPref({save_history: e.target.checked});
+$("optQuizPrompts").onchange = e => setPref({quiz_prompts: e.target.checked});
+$("optSoundFx").onchange = e => setPref({sound_fx: e.target.checked});
+$("optRate").oninput = e => { $("rateLbl").textContent = parseFloat(e.target.value).toFixed(1) + "x"; };
+$("optRate").onchange = e => setPref({speech_rate: parseFloat(e.target.value)});
+
+async function uploadAudio(file) {
+  if (!file || busy) return;
+  setBusy(true); say("Transcribing audio...");
+  const fd = new FormData(); fd.append("audio", file);
+  if ($("src").value !== "auto") fd.append("language", $("src").value);
+  try {
+    const r = await api("/api/transcribe", {method: "POST", body: fd});
+    const d = await r.json();
+    if (!r.ok) { say(d.error || "Could not transcribe that file.", "err"); return; }
+    $("input").value = d.text; updateCount();
+    if ([...$("src").options].some(o => o.value === d.language)) $("src").value = d.language;
+    await translate(true);
+  } finally { setBusy(false); $("audioFile").value = ""; }
+}
+$("upload").onclick = () => $("audioFile").click();
+$("audioFile").onchange = e => uploadAudio(e.target.files[0]);
+const pane = $("inPane");
+pane.ondragover = e => { if (e.dataTransfer.types.includes("Files")) { e.preventDefault(); pane.classList.add("drop"); } };
+pane.ondragleave = () => pane.classList.remove("drop");
+pane.ondrop = e => {
+  pane.classList.remove("drop");
+  const f = e.dataTransfer.files[0];
+  if (f) { e.preventDefault(); uploadAudio(f); }
+};
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) $("mic").classList.add("hidden");
+$("mic").onclick = () => {
+  if (rec) { rec.stop(); return; }
+  rec = new SR();
+  rec.lang = $("src").value === "auto" ? navigator.language : ($("src").value === "ar-iq" ? "ar-IQ" : $("src").value);
+  rec.interimResults = true;
+  const base = $("input").value ? $("input").value + " " : "";
+  rec.onstart = () => { $("mic").classList.add("live"); $("mic").textContent = "Stop"; say("Listening..."); };
+  rec.onresult = e => { $("input").value = base + [...e.results].map(r => r[0].transcript).join(""); updateCount(); };
+  rec.onerror = e => say("Microphone: " + e.error, "err");
+  rec.onend = () => { $("mic").classList.remove("live"); $("mic").textContent = "Mic"; rec = null; translate(true); };
+  rec.start();
+};
+
 (async () => {
-  const qs = new URLSearchParams(location.search);
-  const q = {reset: qs.get("reset"), verified: qs.get("verified"), bad: qs.get("verify_failed")};
-  if (location.search) history.replaceState(null, "", location.pathname);   // keep tokens out of history
-  cfg = await (await fetch("/api/config")).json();
-  cfg.languages.forEach(l => names[l.code] = l.name);
-  if (q.reset) { resetToken = q.reset; showAuth(); return setMode("reset"); }
-  const {user} = await (await api("/api/me")).json();
-  if (user) return showApp(user);
-  showAuth();
-  if (cfg.first_run) return setMode("signup", "Create the first account. It becomes the admin.");
-  setMode("signin", q.verified ? "Email confirmed. You can sign in now." : "",
-          q.bad ? "That confirmation link is invalid or expired. Sign in to get a new one." : "");
+  const q = new URLSearchParams(location.search);
+  resetToken = q.get("reset");
+  if (location.search) history.replaceState({}, "", "/");
+  const [c, m] = await Promise.all([api("/api/config").then(r => r.json()), api("/api/me").then(r => r.json())]);
+  cfg = c; user = m.user; updateCount(); render();
+  if (q.get("verified")) say("Email confirmed. You can sign in now.", "ok");
+  if (q.get("verify_failed")) say("That confirmation link has expired or was already used.", "err");
 })();
-if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
 </script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import hashlib, os, re, secrets, sqlite3, tempfile, threading, time
+import hashlib, json, os, random, re, secrets, sqlite3, tempfile, threading, time
 from datetime import timedelta
 from functools import wraps
 from flask import Flask, g, jsonify, redirect, request, send_from_directory, session
@@ -7,7 +7,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 import mailer
 
 BACKEND = os.getenv("BACKEND", "argos").lower()   # "argos" (offline) or "aws" (Amazon Translate)
-LANGS = [c.strip() for c in os.getenv("LANGS", "en,es,fr,de,it,pt").split(",") if c.strip()]
+LANGS = [c.strip() for c in os.getenv("LANGS", "en,es,fr,de,it,pt,ar").split(",") if c.strip()]
 MAX_CHARS = int(os.getenv("MAX_CHARS", "5000"))
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")          # tiny | base | small
 APP_NAME = os.getenv("APP_NAME", "Translator")
@@ -19,8 +19,9 @@ EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
 NAMES = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian",
          "pt": "Portuguese", "nl": "Dutch", "ru": "Russian", "zh": "Chinese", "ja": "Japanese",
-         "ko": "Korean", "ar": "Arabic", "hi": "Hindi", "tr": "Turkish", "pl": "Polish",
-         "uk": "Ukrainian", "sv": "Swedish", "vi": "Vietnamese", "id": "Indonesian"}
+         "ko": "Korean", "ar": "Arabic (Standard)", "ar-iq": "Arabic (Iraqi)", "hi": "Hindi",
+         "tr": "Turkish", "pl": "Polish", "uk": "Ukrainian", "sv": "Swedish", "vi": "Vietnamese",
+         "id": "Indonesian"}
 
 
 def secret_key():
@@ -61,13 +62,18 @@ CREATE TABLE IF NOT EXISTS users (
   is_admin INTEGER NOT NULL DEFAULT 0,
   is_active INTEGER NOT NULL DEFAULT 1,
   sv INTEGER NOT NULL DEFAULT 0,
-  last_login TEXT
+  last_login TEXT,
+  settings TEXT NOT NULL DEFAULT '{}',
+  xp INTEGER NOT NULL DEFAULT 0,
+  quiz_count INTEGER NOT NULL DEFAULT 0,
+  translate_milestone INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   source TEXT NOT NULL, target TEXT NOT NULL,
   original TEXT NOT NULL, translation TEXT NOT NULL,
+  is_favorite INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_id, id DESC);
@@ -80,7 +86,11 @@ CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 MIGRATIONS = [("email", "TEXT"), ("pending_email", "TEXT"), ("email_verified", "INTEGER NOT NULL DEFAULT 0"),
               ("is_admin", "INTEGER NOT NULL DEFAULT 0"), ("is_active", "INTEGER NOT NULL DEFAULT 1"),
-              ("sv", "INTEGER NOT NULL DEFAULT 0"), ("last_login", "TEXT")]
+              ("sv", "INTEGER NOT NULL DEFAULT 0"), ("last_login", "TEXT"),
+              ("settings", "TEXT NOT NULL DEFAULT '{}'"),
+              ("xp", "INTEGER NOT NULL DEFAULT 0"),
+              ("quiz_count", "INTEGER NOT NULL DEFAULT 0"),
+              ("translate_milestone", "INTEGER NOT NULL DEFAULT 0")]
 
 
 def init_db():
@@ -91,6 +101,9 @@ def init_db():
     for name, ddl in MIGRATIONS:                      # upgrades a database from the earlier version
         if name not in have:
             c.execute(f"ALTER TABLE users ADD COLUMN {name} {ddl}")
+    h_have = {r[1] for r in c.execute("PRAGMA table_info(history)")}
+    if "is_favorite" not in h_have:
+        c.execute("ALTER TABLE history ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0")
     c.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users(email COLLATE NOCASE) WHERE email IS NOT NULL")
     if not c.execute("SELECT 1 FROM users WHERE is_admin=1").fetchone():     # existing install: oldest user = admin
         c.execute("UPDATE users SET is_admin=1 WHERE id=(SELECT MIN(id) FROM users)")
@@ -203,7 +216,10 @@ def start_session(u):
 
 def user_json(u):
     return {"username": u["username"], "email": u["email"], "pending_email": u["pending_email"],
-            "is_admin": bool(u["is_admin"]), "source": u["pref_source"], "target": u["pref_target"]}
+            "is_admin": bool(u["is_admin"]), "source": u["pref_source"], "target": u["pref_target"],
+            "settings": json.loads(u["settings"] or "{}"),
+            "xp": u["xp"] or 0, "quiz_count": u["quiz_count"] or 0,
+            "translate_milestone": u["translate_milestone"] or 0}
 
 
 def send_verify(uid, to):
@@ -222,7 +238,6 @@ def send_reset(uid, to):
 
 @app.before_request
 def csrf_guard():
-    # Browsers can't add custom headers on cross-site form posts, so this blocks CSRF.
     if request.path.startswith("/api/") and request.method in ("POST", "PUT", "DELETE"):
         if request.headers.get("X-Requested-With") != "fetch":
             return jsonify(error="Bad request."), 403
@@ -264,7 +279,7 @@ def register():
     if len(pw) < 8:
         return jsonify(error="Password must be at least 8 characters."), 400
     count_hit("register", 3600)
-    try:  # the very first account becomes the admin and skips email confirmation so you can't lock yourself out
+    try:
         cur = db().execute("INSERT INTO users(username, email, password_hash, email_verified, is_admin) VALUES(?,?,?,?,?)",
                            (name, email, generate_password_hash(pw), int(first), int(first)))
         db().commit()
@@ -350,7 +365,7 @@ def reset():
     uid = take_token(d.get("token"), "reset")
     if not uid:
         return jsonify(error="This reset link has expired or was already used. Request a new one."), 400
-    db().execute("UPDATE users SET password_hash=?, sv=sv+1, email_verified=1 WHERE id=?",   # sv+1 signs out every device
+    db().execute("UPDATE users SET password_hash=?, sv=sv+1, email_verified=1 WHERE id=?",
                  (generate_password_hash(pw), uid))
     db().commit()
     return jsonify(message="Password updated. Sign in with your new password.")
@@ -373,18 +388,60 @@ def set_email():
 @login_required
 def prefs():
     d = request.get_json(silent=True) or {}
-    s, t = str(d.get("source", "auto"))[:8], str(d.get("target", "es"))[:8]
+    s, t = str(d.get("source", "auto"))[:12], str(d.get("target", "es"))[:12]
     db().execute("UPDATE users SET pref_source=?, pref_target=? WHERE id=?", (s, t, g.user["id"]))
     db().commit()
     return jsonify(ok=True)
 
 
+SETTING_CHOICES = {
+    "theme": {"system", "light", "dark", "midnight", "sepia"},
+    "size": {"s", "m", "l", "xl"},
+    "font": {"serif", "sans", "mono"},
+    "density": {"compact", "comfortable", "spacious"},
+    "accent": {"teal", "blue", "purple", "orange", "rose", "emerald"},
+    "register": {"standard", "formal", "casual"}
+}
+
+
+@app.post("/api/settings")
+@login_required
+def save_settings():
+    d = request.get_json(silent=True) or {}
+    s = {k: d[k] for k, ok in SETTING_CHOICES.items() if d.get(k) in ok}
+    for k in ("auto", "save_history", "auto_copy", "quiz_prompts", "sound_fx"):
+        if isinstance(d.get(k), bool):
+            s[k] = d[k]
+    try:
+        s["speech_rate"] = min(1.5, max(0.5, round(float(d.get("speech_rate")), 1)))
+    except (TypeError, ValueError):
+        pass
+    try:
+        s["debounce_ms"] = min(2000, max(250, int(d.get("debounce_ms"))))
+    except (TypeError, ValueError):
+        pass
+    db().execute("UPDATE users SET settings=? WHERE id=?", (json.dumps(s), g.user["id"])); db().commit()
+    return jsonify(ok=True, settings=s)
+
+
 @app.get("/api/history")
 @login_required
 def history():
-    rows = db().execute("SELECT id, source, target, original, translation FROM history "
-                        "WHERE user_id=? ORDER BY id DESC LIMIT 30", (g.user["id"],)).fetchall()
+    rows = db().execute("SELECT id, source, target, original, translation, is_favorite FROM history "
+                        "WHERE user_id=? ORDER BY is_favorite DESC, id DESC LIMIT 40", (g.user["id"],)).fetchall()
     return jsonify(items=[dict(r) for r in rows])
+
+
+@app.post("/api/history/<int:hid>/favorite")
+@login_required
+def toggle_favorite(hid):
+    r = db().execute("SELECT is_favorite FROM history WHERE id=? AND user_id=?", (hid, g.user["id"])).fetchone()
+    if not r:
+        return jsonify(error="Not found"), 404
+    new_val = 0 if r["is_favorite"] else 1
+    db().execute("UPDATE history SET is_favorite=? WHERE id=? AND user_id=?", (new_val, hid, g.user["id"]))
+    db().commit()
+    return jsonify(ok=True, is_favorite=bool(new_val))
 
 
 @app.delete("/api/history")
@@ -454,7 +511,7 @@ def admin_reset(uid):
 def admin_delete(uid):
     if uid == g.user["id"]:
         return jsonify(error="You can't delete your own account."), 400
-    db().execute("DELETE FROM users WHERE id=?", (uid,)); db().commit()   # history and tokens cascade
+    db().execute("DELETE FROM users WHERE id=?", (uid,)); db().commit()
     return jsonify(ok=True)
 
 
@@ -469,32 +526,150 @@ def admin_settings():
     return jsonify(ok=True, allow_signup=signups_open())
 
 
-# ---------------------------------------------------------------- translation
+# ---------------------------------------------------------------- translation & Iraqi Arabic dialect mapping
 if BACKEND == "aws":
     import boto3
     _aws = boto3.client("translate", region_name=os.getenv("AWS_REGION", "us-east-1"))
 else:
     from argostranslate import translate as argos
 
+# Common Iraqi Arabic (Mesopotamian / Baghdadi) -> MSA normalization
+IRAQI_TO_MSA = [
+    (r"\bشلونك\b", "كيف حالك"),
+    (r"\bشلونج\b", "كيف حالك"),
+    (r"\bشلونكم\b", "كيف حالكم"),
+    (r"\bشكو ماكو\b", "ما الأخبار"),
+    (r"\bشكو\b", "ماذا يوجد"),
+    (r"\bماكو\b", "لا يوجد"),
+    (r"\bاكو\b", "يوجد"),
+    (r"\bأكو\b", "يوجد"),
+    (r"\bهسه\b", "الآن"),
+    (r"\bهسة\b", "الآن"),
+    (r"\bكلش\b", "جداً"),
+    (r"\bخوش\b", "جيد"),
+    (r"\bزين\b", "جيد"),
+    (r"\bهواية\b", "كثيراً"),
+    (r"\bهواي\b", "كثيراً"),
+    (r"\bشوية\b", "قليلاً"),
+    (r"\bشنو\b", "ماذا"),
+    (r"\bليش\b", "لماذا"),
+    (r"\bوين\b", "أين"),
+    (r"\bمنو\b", "من"),
+    (r"\bيمتى\b", "متى"),
+    (r"\bشگد\b", "كم"),
+    (r"\bشكد\b", "كم"),
+    (r"\bاريد\b", "أريد"),
+    (r"\bأريد\b", "أريد"),
+    (r"\bما اريد\b", "لا أريد"),
+    (r"\bما أريد\b", "لا أريد"),
+    (r"\bعفيه\b", "أحسنت"),
+    (r"\bعفية\b", "أحسنت"),
+    (r"\bيمعود\b", "يا أخي"),
+    (r"\bچاي\b", "شاي"),
+    (r"\bجاي\b", "شاي"),
+    (r"\bباجر\b", "غداً"),
+    (r"\bالبارحة\b", "أمس"),
+]
+
+# MSA -> Iraqi Arabic colloquial adaptation
+MSA_TO_IRAQI = [
+    (r"\bكيف حالك\b", "شلونك"),
+    (r"\bكيف حالكم\b", "شلونكم"),
+    (r"\bما الأخبار\b", "شكو ماكو"),
+    (r"\bلا يوجد\b", "ماكو"),
+    (r"\bيوجد\b", "اكو"),
+    (r"\bالآن\b", "هسه"),
+    (r"\bجداً\b", "كلش"),
+    (r"\bكثيراً\b", "هواية"),
+    (r"\bقليلاً\b", "شوية"),
+    (r"\bماذا\b", "شنو"),
+    (r"\bلماذا\b", "ليش"),
+    (r"\bأين\b", "وين"),
+    (r"\bمتى\b", "يمتى"),
+    (r"\bغداً\b", "باجر"),
+    (r"\bحسناً\b", "زين"),
+    (r"\bنعم\b", "إي"),
+    (r"\bلا أريد\b", "ما أريد"),
+    (r"\bأريد أن\b", "أريد"),
+    (r"\bسوف أذهب\b", "راح أروح"),
+    (r"\bسأذهب\b", "راح أروح"),
+]
+
+# Curated phrasebook & interactive quiz bank (including Iraqi Arabic & standard languages)
+PHRASEBOOK = [
+    {"lang": "ar-iq", "phrase": "شلونك؟ شكو ماكو؟", "translit": "Shlonak? Shako mako?", "english": "How are you? What's new?", "category": "Greetings"},
+    {"lang": "ar-iq", "phrase": "كلش زين، عفيه عليك!", "translit": "Kullish zain, afya alayk!", "english": "Very good, well done!", "category": "Everyday"},
+    {"lang": "ar-iq", "phrase": "وين رايح هسه؟", "translit": "Wayn rayih hassa?", "english": "Where are you going now?", "category": "Travel"},
+    {"lang": "ar-iq", "phrase": "أريد چاي مهيل، بلا زحمة", "translit": "Areed chai mhayyal, bila zahma", "english": "I want cardamom tea, please", "category": "Food & Drink"},
+    {"lang": "ar-iq", "phrase": "ماكو مشكلة، باجر نحچي", "translit": "Mako mushkila, bajir nihchi", "english": "No problem, we will talk tomorrow", "category": "Everyday"},
+    {"lang": "ar-iq", "phrase": "شگد سعر هذا؟", "translit": "Shgad si'ir hatha?", "english": "How much does this cost?", "category": "Shopping"},
+    {"lang": "ar", "phrase": "أهلاً وسهلاً بك", "translit": "Ahlan wa sahlan bik", "english": "Welcome to you", "category": "Greetings"},
+    {"lang": "ar", "phrase": "شكراً جزيلاً على مساعدتك", "translit": "Shukran jazeelan ala musa'adatak", "english": "Thank you very much for your help", "category": "Polite"},
+    {"lang": "es", "phrase": "¿Cómo estás hoy?", "translit": "KOH-moh ehs-TAHS oy", "english": "How are you today?", "category": "Greetings"},
+    {"lang": "es", "phrase": "Muchas gracias por tu ayuda", "translit": "MOO-chahs GRAH-syahs por too ah-YOO-dah", "english": "Thank you very much for your help", "category": "Polite"},
+    {"lang": "fr", "phrase": "Bonjour, comment ça va ?", "translit": "bohn-ZHOOR koh-MAHN sah vah", "english": "Hello, how is it going?", "category": "Greetings"},
+    {"lang": "fr", "phrase": "Où se trouve la gare ?", "translit": "oo suh troov lah gar", "english": "Where is the train station?", "category": "Travel"},
+    {"lang": "de", "phrase": "Wie geht es Ihnen?", "translit": "vee gayt es EE-nen", "english": "How are you?", "category": "Greetings"},
+    {"lang": "it", "phrase": "Quanto costa questo?", "translit": "KWAHN-toh KOH-stah KWEH-stoh", "english": "How much does this cost?", "category": "Shopping"},
+    {"lang": "pt", "phrase": "Tudo bem com você?", "translit": "TOO-doo beng kong voh-SEH", "english": "Is everything good with you?", "category": "Greetings"},
+]
+
+
+def apply_lexicon(text, rules):
+    out = text
+    for pat, rep in rules:
+        out = re.sub(pat, rep, out)
+    return out
+
 
 def languages():
     if BACKEND == "aws":
-        return [{"code": c, "name": NAMES.get(c, c)} for c in LANGS]
-    return sorted(({"code": l.code, "name": l.name} for l in argos.get_installed_languages()),
-                  key=lambda l: l["name"])
+        base = [{"code": c, "name": NAMES.get(c, c)} for c in LANGS]
+        if any(l["code"] == "ar" for l in base) and not any(l["code"] == "ar-iq" for l in base):
+            base.append({"code": "ar-iq", "name": NAMES["ar-iq"]})
+        return sorted(base, key=lambda l: l["name"])
+    items = []
+    for l in argos.get_installed_languages():
+        label = NAMES.get(l.code, l.name)
+        items.append({"code": l.code, "name": label})
+        if l.code == "ar":
+            items.append({"code": "ar-iq", "name": NAMES["ar-iq"]})
+    return sorted(items, key=lambda l: l["name"])
 
 
-def do_translate(text, src, tgt):
+def do_translate(text, src, tgt, register="standard"):
+    is_src_iq = (src == "ar-iq")
+    is_tgt_iq = (tgt == "ar-iq")
+    engine_src = "ar" if is_src_iq else src
+    engine_tgt = "ar" if is_tgt_iq else tgt
+    work_text = apply_lexicon(text, IRAQI_TO_MSA) if is_src_iq else text
+
     if BACKEND == "aws":
-        r = _aws.translate_text(Text=text, SourceLanguageCode=src, TargetLanguageCode=tgt)
-        return r["TranslatedText"], r["SourceLanguageCode"]
-    if src == "auto":
-        from langdetect import detect
-        src = detect(text).split("-")[0]
-    installed = {l["code"] for l in languages()}
-    if src not in installed or tgt not in installed:
-        raise ValueError(f"Language pair {src}->{tgt} is not installed")
-    return argos.translate(text, src, tgt), src
+        r = _aws.translate_text(Text=work_text, SourceLanguageCode=engine_src, TargetLanguageCode=engine_tgt)
+        out = r["TranslatedText"]
+        det = "ar-iq" if is_src_iq else r["SourceLanguageCode"]
+    else:
+        if engine_src == "auto":
+            from langdetect import detect
+            engine_src = detect(work_text).split("-")[0]
+            if engine_src == "ar" and any(re.search(p, text) for p, _ in IRAQI_TO_MSA[:14]):
+                det = "ar-iq"
+            else:
+                det = engine_src
+        else:
+            det = src
+        installed = {l["code"] for l in languages()}
+        if engine_src not in installed or engine_tgt not in installed:
+            raise ValueError(f"Language pair {src}->{tgt} is not installed")
+        if engine_src == engine_tgt:
+            out = work_text
+        else:
+            out = argos.translate(work_text, engine_src, engine_tgt)
+
+    if is_tgt_iq or (engine_tgt == "ar" and register == "casual"):
+        out = apply_lexicon(out, MSA_TO_IRAQI)
+
+    return out, det
 
 
 @app.get("/")
@@ -521,32 +696,127 @@ def config():
                    first_run=not db().execute("SELECT 1 FROM users LIMIT 1").fetchone())
 
 
+@app.get("/api/phrases")
+@login_required
+def get_phrases():
+    lang = request.args.get("lang", "")
+    items = [p for p in PHRASEBOOK if not lang or p["lang"] == lang]
+    if not items:
+        items = PHRASEBOOK
+    return jsonify(items=items)
+
+
+@app.get("/api/quiz")
+@login_required
+def get_quiz():
+    """Builds a 5-question interactive quiz from user's own translation history + curated Iraqi/language phrasebook."""
+    uid = g.user["id"]
+    hist_rows = db().execute(
+        "SELECT source, target, original, translation FROM history WHERE user_id=? ORDER BY id DESC LIMIT 30",
+        (uid,)
+    ).fetchall()
+
+    pool = []
+    for r in hist_rows:
+        if r["original"].strip() and r["translation"].strip() and r["original"].strip().lower() != r["translation"].strip().lower():
+            pool.append({
+                "prompt": r["original"].strip(),
+                "answer": r["translation"].strip(),
+                "lang_label": f"{NAMES.get(r['source'], r['source'])} → {NAMES.get(r['target'], r['target'])}",
+                "from_history": True
+            })
+
+    for p in PHRASEBOOK:
+        pool.append({
+            "prompt": p["phrase"],
+            "answer": p["english"],
+            "lang_label": f"{NAMES.get(p['lang'], p['lang'])} ({p['category']})",
+            "from_history": False
+        })
+
+    # Deduplicate by prompt
+    seen = set()
+    unique_pool = []
+    for item in pool:
+        key = item["prompt"].lower()
+        if key not in seen and len(item["prompt"]) <= 120 and len(item["answer"]) <= 120:
+            seen.add(key)
+            unique_pool.append(item)
+
+    random.shuffle(unique_pool)
+    selected = unique_pool[:5]
+    all_answers = list({x["answer"] for x in unique_pool if x["answer"]})
+
+    questions = []
+    for q in selected:
+        distractors = [a for a in all_answers if a.lower() != q["answer"].lower()]
+        random.shuffle(distractors)
+        choices = [q["answer"]] + distractors[:3]
+        random.shuffle(choices)
+        questions.append({
+            "prompt": q["prompt"],
+            "answer": q["answer"],
+            "lang_label": q["lang_label"],
+            "from_history": q["from_history"],
+            "choices": choices
+        })
+
+    return jsonify(questions=questions)
+
+
+@app.post("/api/quiz/submit")
+@login_required
+def submit_quiz():
+    d = request.get_json(silent=True) or {}
+    score = max(0, min(5, int(d.get("score", 0))))
+    earned_xp = score * 20 + (25 if score == 5 else 0)
+    db().execute("UPDATE users SET xp = COALESCE(xp, 0) + ?, quiz_count = COALESCE(quiz_count, 0) + 1 WHERE id=?",
+                 (earned_xp, g.user["id"]))
+    db().commit()
+    u = db().execute("SELECT xp, quiz_count FROM users WHERE id=?", (g.user["id"],)).fetchone()
+    return jsonify(ok=True, earned_xp=earned_xp, xp=u["xp"], quiz_count=u["quiz_count"])
+
+
 @app.post("/api/translate")
 @login_required
 def translate():
     d = request.get_json(silent=True) or {}
     text, src, tgt = (d.get("text") or "").strip(), d.get("source", "auto"), d.get("target")
+    register = d.get("register", "standard")
     if not text or not tgt:
         return jsonify(error="Enter some text and choose a target language."), 400
     if len(text) > MAX_CHARS:
         return jsonify(error=f"Text is limited to {MAX_CHARS} characters."), 400
     try:
-        out, detected = do_translate(text, src, tgt)
+        out, detected = do_translate(text, src, tgt, register=register)
     except ValueError as e:
         return jsonify(error=str(e)), 400
     except Exception:
         app.logger.exception("translate failed")
         return jsonify(error="Translation failed. Check the server logs."), 500
+
+    milestone = g.user["translate_milestone"] or 0
     if d.get("save", True):
         uid = g.user["id"]
+        existed = db().execute("SELECT 1 FROM history WHERE user_id=? AND original=? AND target=?", (uid, text, tgt)).fetchone()
         db().execute("DELETE FROM history WHERE user_id=? AND original=? AND target=?", (uid, text, tgt))
         db().execute("INSERT INTO history(user_id, source, target, original, translation) VALUES(?,?,?,?,?)",
                      (uid, detected, tgt, text, out))
         db().execute("DELETE FROM history WHERE user_id=? AND id NOT IN "
                      "(SELECT id FROM history WHERE user_id=? ORDER BY id DESC LIMIT ?)",
                      (uid, uid, HISTORY_LIMIT))
+        if not existed:
+            db().execute("UPDATE users SET translate_milestone = COALESCE(translate_milestone, 0) + 1, xp = COALESCE(xp, 0) + 5 WHERE id=?", (uid,))
+            milestone += 1
         db().commit()
-    return jsonify(translation=out, detected=detected)
+
+    u_stats = db().execute("SELECT xp, translate_milestone FROM users WHERE id=?", (g.user["id"],)).fetchone()
+    return jsonify(
+        translation=out,
+        detected=detected,
+        xp=u_stats["xp"] or 0,
+        translate_milestone=u_stats["translate_milestone"] or milestone
+    )
 
 
 # ---------------------------------------------------------------- audio -> text
@@ -568,12 +838,13 @@ def transcribe():
     f = request.files.get("audio")
     if not f:
         return jsonify(error="Choose an audio file to upload."), 400
-    lang = request.form.get("language") or None
+    raw_lang = request.form.get("language") or None
+    lang = "ar" if raw_lang == "ar-iq" else raw_lang
     suffix = os.path.splitext(f.filename or "")[1][:8] or ".audio"
     with tempfile.NamedTemporaryFile(suffix=suffix) as tmp:
         f.save(tmp.name)
         try:
-            with _wlock:  # one at a time keeps the Pi from running out of RAM
+            with _wlock:
                 segments, info = get_whisper().transcribe(tmp.name, language=lang, vad_filter=True)
                 text = " ".join(s.text.strip() for s in segments).strip()
         except Exception:
@@ -581,7 +852,8 @@ def transcribe():
             return jsonify(error="Couldn't read that audio file. Try mp3, wav, m4a, ogg or webm."), 400
     if not text:
         return jsonify(error="No speech found in that file."), 400
-    return jsonify(text=text, language=info.language)
+    det_lang = "ar-iq" if raw_lang == "ar-iq" else info.language
+    return jsonify(text=text, language=det_lang)
 
 
 @app.errorhandler(413)

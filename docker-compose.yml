@@ -9,7 +9,7 @@ services:
     environment:
       BACKEND: "${BACKEND:-argos}"          # argos (offline) or aws
       WHISPER_MODEL: "${WHISPER_MODEL:-base}"   # tiny = faster, small = more accurate
-      LANGS: "${LANGS:-en,es,fr,de,it,pt}"
+      LANGS: "${LANGS:-en,es,fr,de,it,pt,ar}"
       APP_URL: "${APP_URL:-http://localhost:8000}"   # address people type in; used in email links
       COOKIE_SECURE: "${COOKIE_SECURE:-0}"  # 1 once you serve over HTTPS
       TRUST_PROXY: "${TRUST_PROXY:-0}"      # 1 when behind a tunnel or reverse proxy

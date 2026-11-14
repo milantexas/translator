@@ -4,7 +4,7 @@ Flask + vanilla JS. One container, two backends:
 - `BACKEND=argos`: fully offline (Argos Translate). Free. Works on a Pi 4 or any server.
 - `BACKEND=aws`: Amazon Translate. Fast, many languages, pay per character.
 
-Edit `LANGS` (comma-separated codes) in `docker-compose.yml` to choose languages.
+Arabic (`ar`) is included by default. Edit `LANGS` (comma-separated codes) in `docker-compose.yml` to choose languages.
 
 ## Easiest: Portainer (point and click)
 1. One time only, on the Pi, install Docker and Portainer (three copy-paste lines, see the chat instructions).

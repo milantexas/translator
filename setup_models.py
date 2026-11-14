@@ -6,7 +6,7 @@ if os.getenv("BACKEND", "argos").lower() != "argos":
 import argostranslate.package as pkg
 from argostranslate import translate
 
-langs = {c.strip() for c in os.getenv("LANGS", "en,es,fr,de,it,pt").split(",") if c.strip()}
+langs = {c.strip() for c in os.getenv("LANGS", "en,es,fr,de,it,pt,ar").split(",") if c.strip()}
 installed = translate.get_installed_languages()
 have = {(l.code, tr.to_lang.code) for l in installed for tr in l.translations_from}
 
