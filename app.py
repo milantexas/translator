@@ -1,13 +1,18 @@
 import hashlib, json, os, random, re, secrets, sqlite3, tempfile, threading, time
 from datetime import timedelta
 from functools import wraps
-from flask import Flask, g, jsonify, redirect, request, send_from_directory, session
+from flask import Flask, g, jsonify, redirect, request, send_file, send_from_directory, session
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 import mailer
 
+try:
+    from gtts import gTTS
+except ImportError:
+    gTTS = None
+
 BACKEND = os.getenv("BACKEND", "argos").lower()   # "argos" (offline) or "aws" (Amazon Translate)
-LANGS = [c.strip() for c in os.getenv("LANGS", "en,es,fr,de,it,pt,ar").split(",") if c.strip()]
+LANGS = [c.strip() for c in os.getenv("LANGS", "en,ar-iq").split(",") if c.strip()]
 MAX_CHARS = int(os.getenv("MAX_CHARS", "5000"))
 WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")          # tiny | base | small
 APP_NAME = os.getenv("APP_NAME", "Translator")
@@ -17,11 +22,7 @@ os.makedirs(DATA, exist_ok=True)
 DB_PATH = os.getenv("DB_PATH", os.path.join(DATA, "app.db"))
 EMAIL_RE = re.compile(r"[^@\s]+@[^@\s]+\.[^@\s]+")
 
-NAMES = {"en": "English", "es": "Spanish", "fr": "French", "de": "German", "it": "Italian",
-         "pt": "Portuguese", "nl": "Dutch", "ru": "Russian", "zh": "Chinese", "ja": "Japanese",
-         "ko": "Korean", "ar": "Arabic (Standard)", "ar-iq": "Arabic (Iraqi)", "hi": "Hindi",
-         "tr": "Turkish", "pl": "Polish", "uk": "Ukrainian", "sv": "Swedish", "vi": "Vietnamese",
-         "id": "Indonesian"}
+NAMES = {"en": "English", "ar": "Arabic (Standard)", "ar-iq": "Arabic (Iraqi)"}
 
 
 def secret_key():
@@ -54,7 +55,7 @@ CREATE TABLE IF NOT EXISTS users (
   username TEXT NOT NULL UNIQUE COLLATE NOCASE,
   password_hash TEXT NOT NULL,
   pref_source TEXT NOT NULL DEFAULT 'auto',
-  pref_target TEXT NOT NULL DEFAULT 'es',
+  pref_target TEXT NOT NULL DEFAULT 'en',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   email TEXT,
   pending_email TEXT,
@@ -388,7 +389,7 @@ def set_email():
 @login_required
 def prefs():
     d = request.get_json(silent=True) or {}
-    s, t = str(d.get("source", "auto"))[:12], str(d.get("target", "es"))[:12]
+    s, t = str(d.get("source", "auto"))[:12], str(d.get("target", "en"))[:12]
     db().execute("UPDATE users SET pref_source=?, pref_target=? WHERE id=?", (s, t, g.user["id"]))
     db().commit()
     return jsonify(ok=True)
@@ -595,7 +596,7 @@ MSA_TO_IRAQI = [
     (r"\bسأذهب\b", "راح أروح"),
 ]
 
-# Curated phrasebook & interactive quiz bank (including Iraqi Arabic & standard languages)
+# Curated Iraqi Arabic phrasebook & interactive quiz bank (Strictly ar-iq -> en)
 PHRASEBOOK = [
     {"lang": "ar-iq", "phrase": "شلونك؟ شكو ماكو؟", "translit": "Shlonak? Shako mako?", "english": "How are you? What's new?", "category": "Greetings"},
     {"lang": "ar-iq", "phrase": "كلش زين، عفيه عليك!", "translit": "Kullish zain, afya alayk!", "english": "Very good, well done!", "category": "Everyday"},
@@ -603,15 +604,15 @@ PHRASEBOOK = [
     {"lang": "ar-iq", "phrase": "أريد چاي مهيل، بلا زحمة", "translit": "Areed chai mhayyal, bila zahma", "english": "I want cardamom tea, please", "category": "Food & Drink"},
     {"lang": "ar-iq", "phrase": "ماكو مشكلة، باجر نحچي", "translit": "Mako mushkila, bajir nihchi", "english": "No problem, we will talk tomorrow", "category": "Everyday"},
     {"lang": "ar-iq", "phrase": "شگد سعر هذا؟", "translit": "Shgad si'ir hatha?", "english": "How much does this cost?", "category": "Shopping"},
-    {"lang": "ar", "phrase": "أهلاً وسهلاً بك", "translit": "Ahlan wa sahlan bik", "english": "Welcome to you", "category": "Greetings"},
-    {"lang": "ar", "phrase": "شكراً جزيلاً على مساعدتك", "translit": "Shukran jazeelan ala musa'adatak", "english": "Thank you very much for your help", "category": "Polite"},
-    {"lang": "es", "phrase": "¿Cómo estás hoy?", "translit": "KOH-moh ehs-TAHS oy", "english": "How are you today?", "category": "Greetings"},
-    {"lang": "es", "phrase": "Muchas gracias por tu ayuda", "translit": "MOO-chahs GRAH-syahs por too ah-YOO-dah", "english": "Thank you very much for your help", "category": "Polite"},
-    {"lang": "fr", "phrase": "Bonjour, comment ça va ?", "translit": "bohn-ZHOOR koh-MAHN sah vah", "english": "Hello, how is it going?", "category": "Greetings"},
-    {"lang": "fr", "phrase": "Où se trouve la gare ?", "translit": "oo suh troov lah gar", "english": "Where is the train station?", "category": "Travel"},
-    {"lang": "de", "phrase": "Wie geht es Ihnen?", "translit": "vee gayt es EE-nen", "english": "How are you?", "category": "Greetings"},
-    {"lang": "it", "phrase": "Quanto costa questo?", "translit": "KWAHN-toh KOH-stah KWEH-stoh", "english": "How much does this cost?", "category": "Shopping"},
-    {"lang": "pt", "phrase": "Tudo bem com você?", "translit": "TOO-doo beng kong voh-SEH", "english": "Is everything good with you?", "category": "Greetings"},
+    {"lang": "ar-iq", "phrase": "ما أريد هذا، غالي كلش", "translit": "Ma areed hatha, ghali kullish", "english": "I don't want this, it's very expensive", "category": "Shopping"},
+    {"lang": "ar-iq", "phrase": "شوكت نطلع؟", "translit": "Shwakt nitla'?", "english": "When are we going out?", "category": "Everyday"},
+    {"lang": "ar-iq", "phrase": "دير بالك على نفسك", "translit": "Deer balak ala nafsak", "english": "Take care of yourself", "category": "Polite"},
+    {"lang": "ar-iq", "phrase": "الله يطول عمرك", "translit": "Allah yatawwil umrak", "english": "May God lengthen your life (Thank you)", "category": "Polite"},
+    {"lang": "ar-iq", "phrase": "عاشت ايدك", "translit": "Aasht eydak", "english": "Bless your hands / Well done", "category": "Polite"},
+    {"lang": "ar-iq", "phrase": "شنو رأيك بهذا الأكل؟", "translit": "Shnu rayak bihal-akl?", "english": "What do you think of this food?", "category": "Food & Drink"},
+    {"lang": "ar-iq", "phrase": "الجو حار كلش اليوم", "translit": "Al-jaww haar kullish al-yoom", "english": "The weather is very hot today", "category": "Weather"},
+    {"lang": "ar-iq", "phrase": "اصبر شوية من فضلك", "translit": "Isbir shwayya min fadlak", "english": "Wait a little bit please", "category": "Everyday"},
+    {"lang": "ar-iq", "phrase": "تفضل ويانا صبّ چاي", "translit": "Tafaddal wayana subb chai", "english": "Join us and pour some tea", "category": "Food & Drink"}
 ]
 
 
@@ -624,16 +625,16 @@ def apply_lexicon(text, rules):
 
 def languages():
     if BACKEND == "aws":
-        base = [{"code": c, "name": NAMES.get(c, c)} for c in LANGS]
-        if any(l["code"] == "ar" for l in base) and not any(l["code"] == "ar-iq" for l in base):
-            base.append({"code": "ar-iq", "name": NAMES["ar-iq"]})
-        return sorted(base, key=lambda l: l["name"])
+        return [{"code": "en", "name": NAMES["en"]}, {"code": "ar-iq", "name": NAMES["ar-iq"]}]
     items = []
     for l in argos.get_installed_languages():
-        label = NAMES.get(l.code, l.name)
-        items.append({"code": l.code, "name": label})
-        if l.code == "ar":
-            items.append({"code": "ar-iq", "name": NAMES["ar-iq"]})
+        if l.code in ("en", "ar", "ar-iq"):
+            label = NAMES.get(l.code, l.name)
+            items.append({"code": l.code, "name": label})
+    if not any(i["code"] == "ar-iq" for i in items):
+        items.append({"code": "ar-iq", "name": NAMES["ar-iq"]})
+    if not any(i["code"] == "en" for i in items):
+        items.append({"code": "en", "name": NAMES["en"]})
     return sorted(items, key=lambda l: l["name"])
 
 
@@ -699,20 +700,18 @@ def config():
 @app.get("/api/phrases")
 @login_required
 def get_phrases():
-    lang = request.args.get("lang", "")
-    items = [p for p in PHRASEBOOK if not lang or p["lang"] == lang]
-    if not items:
-        items = PHRASEBOOK
+    lang = request.args.get("lang", "ar-iq")
+    items = [p for p in PHRASEBOOK if p["lang"] == "ar-iq"]
     return jsonify(items=items)
 
 
 @app.get("/api/quiz")
 @login_required
 def get_quiz():
-    """Builds a 5-question interactive quiz from user's own translation history + curated Iraqi/language phrasebook."""
+    """Builds a 5-question interactive quiz focused exclusively on Iraqi Arabic to English."""
     uid = g.user["id"]
     hist_rows = db().execute(
-        "SELECT source, target, original, translation FROM history WHERE user_id=? ORDER BY id DESC LIMIT 30",
+        "SELECT source, target, original, translation FROM history WHERE user_id=? AND (source='ar-iq' OR target='ar-iq') ORDER BY id DESC LIMIT 30",
         (uid,)
     ).fetchall()
 
@@ -722,7 +721,7 @@ def get_quiz():
             pool.append({
                 "prompt": r["original"].strip(),
                 "answer": r["translation"].strip(),
-                "lang_label": f"{NAMES.get(r['source'], r['source'])} → {NAMES.get(r['target'], r['target'])}",
+                "lang_label": f"Iraqi Arabic → English",
                 "from_history": True
             })
 
@@ -730,11 +729,10 @@ def get_quiz():
         pool.append({
             "prompt": p["phrase"],
             "answer": p["english"],
-            "lang_label": f"{NAMES.get(p['lang'], p['lang'])} ({p['category']})",
+            "lang_label": f"Iraqi Arabic → English ({p['category']})",
             "from_history": False
         })
 
-    # Deduplicate by prompt
     seen = set()
     unique_pool = []
     for item in pool:
@@ -817,6 +815,30 @@ def translate():
         xp=u_stats["xp"] or 0,
         translate_milestone=u_stats["translate_milestone"] or milestone
     )
+
+
+# ---------------------------------------------------------------- text-to-speech audio endpoint
+@app.post("/speak")
+@app.post("/api/speak")
+@login_required
+def speak():
+    if not gTTS:
+        return jsonify(error="gTTS library is not installed"), 500
+    d = request.get_json(silent=True) or {}
+    text = (d.get("text") or "").strip()
+    lang = d.get("lang", "ar")
+    if not text:
+        return jsonify(error="No text provided for speech."), 400
+    try:
+        tts_lang = 'ar' if 'ar' in lang.lower() else 'en'
+        tts = gTTS(text=text, lang=tts_lang)
+        fd, audio_path = tempfile.mkstemp(suffix=".mp3")
+        os.close(fd)
+        tts.save(audio_path)
+        return send_file(audio_path, mimetype="audio/mp3", as_attachment=False)
+    except Exception as e:
+        app.logger.exception("speak failed")
+        return jsonify(error=str(e)), 500
 
 
 # ---------------------------------------------------------------- audio -> text
