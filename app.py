@@ -502,6 +502,19 @@ def index():
     return send_from_directory("static", "index.html")
 
 
+@app.get("/manifest.webmanifest")
+def manifest():
+    return send_from_directory("static", "manifest.webmanifest", mimetype="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    r = send_from_directory("static", "sw.js", mimetype="application/javascript")
+    r.headers["Cache-Control"] = "no-cache"
+    r.headers["Service-Worker-Allowed"] = "/"
+    return r
+
+
 @app.get("/api/config")
 def config():
     return jsonify(backend=BACKEND, languages=languages(), max_chars=MAX_CHARS, signup_open=signups_open(),

@@ -3,6 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0f6b5c">
+<link rel="icon" href="/static/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 <title>Translator</title>
 <style>
 :root{--bg:#eef2f1;--panel:#fff;--ink:#14201e;--muted:#5d6f6b;--line:#cfdad7;--accent:#0f6b5c;--accent-ink:#fff;--err:#b3261e}
@@ -290,6 +294,7 @@ $("clearHist").onclick = async () => { if (confirm("Delete all of your history?"
   setMode("signin", q.verified ? "Email confirmed. You can sign in now." : "",
           q.bad ? "That confirmation link is invalid or expired. Sign in to get a new one." : "");
 })();
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
 </script>
 </body>
 </html>
