@@ -1,0 +1,27 @@
+# Every value can be set from Portainer's "Environment variables" screen, so you never need to edit this file
+# and never need to put passwords in it. The text after :- is the default.
+services:
+  translator:
+    build:
+      context: .
+      args:
+        WITH_ARGOS: "${WITH_ARGOS:-1}"     # use 0 when BACKEND=aws
+    environment:
+      BACKEND: "${BACKEND:-argos}"          # argos (offline) or aws
+      WHISPER_MODEL: "${WHISPER_MODEL:-base}"   # tiny = faster, small = more accurate
+      LANGS: "${LANGS:-en,es,fr,de,it,pt}"
+      APP_URL: "${APP_URL:-http://localhost:8000}"   # address people type in; used in email links
+      COOKIE_SECURE: "${COOKIE_SECURE:-0}"  # 1 once you serve over HTTPS
+      TRUST_PROXY: "${TRUST_PROXY:-0}"      # 1 when behind a tunnel or reverse proxy
+      SMTP_HOST: "${SMTP_HOST:-}"           # empty = email links are printed in the log instead
+      SMTP_PORT: "${SMTP_PORT:-587}"
+      SMTP_SECURITY: "${SMTP_SECURITY:-starttls}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASSWORD: "${SMTP_PASSWORD:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      AWS_REGION: "${AWS_REGION:-us-east-1}"
+    ports: ["8000:8000"]
+    volumes: ["models:/data"]
+    restart: unless-stopped
+volumes:
+  models:

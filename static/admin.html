@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin - Translator</title>
+<style>
+:root{--bg:#eef2f1;--panel:#fff;--ink:#14201e;--muted:#5d6f6b;--line:#cfdad7;--accent:#0f6b5c;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1514;--panel:#142120;--ink:#e6efed;--muted:#8fa5a0;--line:#274039;--accent:#4cc3ae;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,"Iowan Old Style",serif}
+main{max-width:860px;margin:0 auto;padding:24px 16px 48px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+h1{font-size:1.6rem;margin:0;flex:1}
+a.btn,button{font:inherit;font-size:.9rem;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;text-decoration:none;cursor:pointer}
+button:hover,a.btn:hover{border-color:var(--accent)}
+button.danger{color:var(--err)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:12px}
+.settings{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.settings .sp{flex:1}
+.user .top{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.user .name{font-weight:bold}
+.tag{font-size:.75rem;border:1px solid var(--line);border-radius:99px;padding:0 8px;color:var(--muted)}
+.tag.on{color:var(--accent);border-color:var(--accent)}
+.tag.bad{color:var(--err);border-color:var(--err)}
+.meta{color:var(--muted);font-size:.85rem;margin:2px 0 8px;overflow-wrap:anywhere}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.msg{min-height:1.5em;color:var(--accent);margin-bottom:8px}
+.msg.err{color:var(--err)}
+</style>
+</head>
+<body>
+<main>
+  <header><h1>Admin</h1><a class="btn" href="/">Back to translator</a></header>
+  <div class="msg" id="msg" role="status"></div>
+  <div class="panel settings">
+    <label><input type="checkbox" id="signup"> Allow new sign-ups</label>
+    <span class="sp"></span>
+    <span class="meta" id="mail"></span>
+  </div>
+  <div id="users"></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const api = (p, o = {}) => fetch(p, {...o, headers: {"X-Requested-With": "fetch", "Content-Type": "application/json", ...(o.headers || {})}});
+const say = (t, err) => { $("msg").textContent = t; $("msg").className = "msg" + (err ? " err" : ""); };
+const fmt = s => s ? new Date(s.replace(" ", "T") + "Z").toLocaleString() : "never";
+
+async function act(path, method, body, confirmText) {
+  if (confirmText && !confirm(confirmText)) return;
+  const r = await api(path, {method, body: body ? JSON.stringify(body) : undefined});
+  const d = await r.json().catch(() => ({}));
+  say(d.message || d.error || "Saved.", !r.ok);
+  load();
+}
+
+async function load() {
+  const r = await api("/api/admin/users");
+  if (r.status === 401) { location.href = "/"; return; }
+  if (r.status === 403) { say("This page is for admins only.", true); return; }
+  const d = await r.json();
+  $("signup").checked = d.allow_signup;
+  $("mail").textContent = d.mail_enabled ? "Email is configured." : "Email is not configured. Links are printed in the server log.";
+  const box = $("users"); box.innerHTML = "";
+  d.users.forEach(u => {
+    const you = u.id === d.me, el = document.createElement("div"); el.className = "panel user";
+    const top = document.createElement("div"); top.className = "top";
+    const name = document.createElement("span"); name.className = "name"; name.textContent = u.username + (you ? " (you)" : "");
+    top.append(name);
+    [[u.is_admin, "admin", "on"], [!u.is_active, "disabled", "bad"], [u.email && !u.email_verified, "unconfirmed email", "bad"]]
+      .forEach(([cond, label, cls]) => { if (cond) { const t = document.createElement("span"); t.className = "tag " + cls; t.textContent = label; top.append(t); } });
+    const meta = document.createElement("div"); meta.className = "meta";
+    meta.textContent = `${u.email || "no email"}${u.pending_email ? " (pending: " + u.pending_email + ")" : ""} · joined ${fmt(u.created_at)} · last sign-in ${fmt(u.last_login)} · ${u.translations} saved translations`;
+    const acts = document.createElement("div"); acts.className = "actions";
+    const btn = (label, fn, cls) => { const b = document.createElement("button"); b.textContent = label; if (cls) b.className = cls; b.onclick = fn; acts.append(b); };
+    const url = "/api/admin/users/" + u.id;
+    if (!you) {
+      btn(u.is_admin ? "Remove admin" : "Make admin", () => act(url, "POST", {is_admin: !u.is_admin}));
+      btn(u.is_active ? "Disable" : "Enable", () => act(url, "POST", {is_active: !u.is_active}));
+    }
+    if (u.email) btn("Send password reset", () => act(url + "/reset", "POST"));
+    if (u.email && !u.email_verified || u.pending_email) btn("Mark email confirmed", () => act(url, "POST", {email_verified: true}));
+    if (!you) btn("Delete", () => act(url, "DELETE", null, `Delete ${u.username} and all of their history? This can't be undone.`), "danger");
+    el.append(top, meta, acts); box.append(el);
+  });
+}
+$("signup").onchange = e => act("/api/admin/settings", "POST", {allow_signup: e.target.checked});
+load();
+</script>
+</body>
+</html>

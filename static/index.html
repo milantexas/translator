@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translator</title>
+<style>
+:root{--bg:#eef2f1;--panel:#fff;--ink:#14201e;--muted:#5d6f6b;--line:#cfdad7;--accent:#0f6b5c;--accent-ink:#fff;--err:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0d1514;--panel:#142120;--ink:#e6efed;--muted:#8fa5a0;--line:#274039;--accent:#4cc3ae;--accent-ink:#06211c;--err:#ff8a80}}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 Georgia,"Iowan Old Style",serif}
+main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+header{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+h1{font-size:1.6rem;margin:0;letter-spacing:-.01em;flex:1}
+.who{color:var(--muted);font-size:.9rem}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+select,button,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+select{flex:1;min-width:0}
+button{cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:700px){.grid{grid-template-columns:1fr}}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:flex;flex-direction:column}
+textarea,.out{flex:1;min-height:200px;padding:14px;border:0;background:transparent;color:var(--ink);font:1.1rem/1.5 Georgia,serif;resize:vertical;outline:none;white-space:pre-wrap}
+.tools{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px;border-top:1px solid var(--line);color:var(--muted);font-size:.85rem}
+.tools .sp{flex:1}
+.tools button{padding:4px 10px;font-size:.85rem}
+.err{color:var(--err);min-height:1.5em;margin:8px 2px}
+.hist{margin-top:24px}
+.hist .head{display:flex;align-items:center;color:var(--muted)}
+.hist h2{font-size:1rem;font-weight:normal;margin:0;flex:1}
+.row{display:flex;gap:6px;margin-top:6px}
+.row .item{flex:1;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .del{padding:4px 10px}
+.auth{max-width:380px;margin:12vh auto 0;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:20px;display:flex;flex-direction:column;gap:10px}
+.auth h2{margin:0 0 4px;font-size:1.2rem}
+.auth label{display:flex;flex-direction:column;gap:4px;font-size:.9rem;color:var(--muted)}
+.auth input{color:var(--ink)}
+.note{color:var(--accent);min-height:1.2em;font-size:.95rem}
+.banner{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 12px;margin-bottom:12px;font-size:.9rem}
+.banner input{flex:1;min-width:160px}
+a.btn{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:8px 10px;text-decoration:none}
+.link{background:none;border:0;color:var(--accent);padding:0;text-decoration:underline;align-self:flex-start}
+@media (prefers-reduced-motion:no-preference){.busy{opacity:.6;transition:opacity .2s}}
+</style>
+</head>
+<body>
+<main>
+  <section class="auth" id="auth" hidden>
+    <h2 id="authTitle">Sign in</h2>
+    <label id="lUser"><span id="lUserText">Username or email</span><input id="user" autocomplete="username" autocapitalize="none"></label>
+    <label id="lEmail" hidden>Email<input id="email" type="email" autocomplete="email" autocapitalize="none"></label>
+    <label id="lPass">Password<input id="pass" type="password" autocomplete="current-password"></label>
+    <div class="note" id="authMsg" role="status"></div>
+    <div class="err" id="authErr" role="alert"></div>
+    <button class="primary" id="authGo">Sign in</button>
+    <button class="link" id="authToggle">Create an account</button>
+    <button class="link" id="forgotLink">Forgot password?</button>
+    <button class="link" id="resendLink" hidden>Resend confirmation email</button>
+  </section>
+
+  <section id="app" hidden>
+    <header>
+      <h1>Translator</h1>
+      <span class="who" id="who"></span>
+      <a class="btn" id="adminLink" href="/admin" hidden>Admin</a>
+      <button id="logout">Sign out</button>
+    </header>
+    <div class="banner" id="banner" hidden>
+      <span id="bannerText"></span>
+      <input id="newEmail" type="email" placeholder="you@example.com" autocapitalize="none"><button id="saveEmail">Add email</button>
+    </div>
+    <div class="bar">
+      <select id="src" aria-label="From language"></select>
+      <button id="swap" title="Swap languages" aria-label="Swap languages">⇄</button>
+      <select id="tgt" aria-label="To language"></select>
+    </div>
+    <div class="grid">
+      <div class="box">
+        <textarea id="text" placeholder="Type or paste text, or upload a voice clip"></textarea>
+        <div class="tools">
+          <button id="mic">Dictate</button><button id="up">Upload audio</button>
+          <input type="file" id="file" accept="audio/*,video/mp4,video/webm,.m4a,.opus" hidden>
+          <button id="spkIn">Listen</button>
+          <span class="sp"></span><span id="count">0</span>
+        </div>
+      </div>
+      <div class="box">
+        <div class="out" id="out" aria-live="polite"></div>
+        <div class="tools">
+          <button id="copy">Copy</button><button id="spkOut">Listen</button>
+          <span class="sp"></span><span id="det"></span>
+        </div>
+      </div>
+    </div>
+    <div class="err" id="err" role="alert"></div>
+    <section class="hist">
+      <div class="head"><h2>Your history</h2><button id="clearHist">Clear all</button></div>
+      <div id="hist"></div>
+    </section>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const src = $("src"), tgt = $("tgt"), text = $("text"), out = $("out");
+let names = {}, cfg, ctrl, timer, detected = "", signup = false, ready = false;
+
+const api = (path, opts = {}) => fetch(path, {...opts, headers: {"X-Requested-With": "fetch", ...(opts.headers || {})}});
+const post = (path, obj) => api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(obj || {})});
+
+/* ---------- auth ---------- */
+let mode = "signin", resetToken = null, unverifiedEmail = "";
+function showAuth() { $("app").hidden = true; $("auth").hidden = false; $("pass").value = ""; }
+function setMode(m, msg = "", err = "") {
+  mode = m;
+  $("authTitle").textContent = {signin: "Sign in", signup: "Create account", forgot: "Reset password", reset: "Choose a new password"}[m];
+  $("authGo").textContent = {signin: "Sign in", signup: "Create account", forgot: "Send reset link", reset: "Save password"}[m];
+  $("lUser").hidden = m === "forgot" || m === "reset";
+  $("lEmail").hidden = !(m === "signup" || m === "forgot");
+  $("lPass").hidden = m === "forgot";
+  $("lUserText").textContent = m === "signup" ? "Username" : "Username or email";
+  $("pass").autocomplete = m === "signin" ? "current-password" : "new-password";
+  $("authToggle").hidden = m === "reset" || (m === "signin" && !cfg.signup_open && !cfg.first_run);
+  $("authToggle").textContent = m === "signin" ? "Create an account" : "Back to sign in";
+  $("forgotLink").hidden = m !== "signin";
+  $("resendLink").hidden = true;
+  $("authMsg").textContent = msg; $("authErr").textContent = err;
+}
+$("authToggle").onclick = () => setMode(mode === "signin" ? "signup" : "signin");
+$("forgotLink").onclick = () => setMode("forgot");
+async function submitAuth() {
+  $("authErr").textContent = ""; $("authMsg").textContent = "";
+  const body = {signin: () => ["/api/login", {username: $("user").value, password: $("pass").value}],
+    signup: () => ["/api/register", {username: $("user").value, email: $("email").value, password: $("pass").value}],
+    forgot: () => ["/api/forgot", {email: $("email").value}],
+    reset: () => ["/api/reset", {token: resetToken, password: $("pass").value}]}[mode]();
+  const r = await post(body[0], body[1]);
+  const d = await r.json();
+  if (!r.ok) {
+    $("authErr").textContent = d.error;
+    if (d.unverified) { unverifiedEmail = d.unverified; $("resendLink").hidden = false; }
+    return;
+  }
+  if (d.user) return showApp(d.user);
+  if (mode === "reset") resetToken = null;
+  setMode("signin", d.message || "");
+}
+$("authGo").onclick = submitAuth;
+$("pass").addEventListener("keydown", e => { if (e.key === "Enter") submitAuth(); });
+$("resendLink").onclick = async () => {
+  const d = await (await post("/api/resend", {email: unverifiedEmail})).json();
+  $("authErr").textContent = ""; $("authMsg").textContent = d.message || d.error || "";
+};
+$("logout").onclick = async () => { await post("/api/logout"); text.value = ""; out.textContent = ""; showAuth(); setMode("signin"); };
+$("saveEmail").onclick = async () => {
+  const r = await post("/api/email", {email: $("newEmail").value}); const d = await r.json();
+  $("bannerText").textContent = d.message || d.error;
+  if (r.ok) { $("newEmail").hidden = true; $("saveEmail").hidden = true; }
+};
+
+/* ---------- app ---------- */
+function showApp(user) {
+  $("auth").hidden = true; $("app").hidden = false;
+  $("who").textContent = user.username;
+  $("adminLink").hidden = !user.is_admin;
+  const needEmail = !user.email && !user.pending_email;
+  $("banner").hidden = !(needEmail || user.pending_email);
+  $("newEmail").hidden = $("saveEmail").hidden = !needEmail;
+  $("bannerText").textContent = needEmail ? "Add an email so you can reset your password:" : `Check ${user.pending_email} for a confirmation link.`;
+  if (!ready) {
+    const opts = cfg.languages.map(l => `<option value="${l.code}">${l.name}</option>`).join("");
+    src.innerHTML = '<option value="auto">Detect language</option>' + opts;
+    tgt.innerHTML = opts; ready = true;
+  }
+  src.value = user.source === "auto" || names[user.source] ? user.source : "auto";
+  tgt.value = names[user.target] ? user.target : cfg.languages[0].code;
+  text.maxLength = cfg.max_chars;
+  loadHist();
+}
+
+async function translate() {
+  clearTimeout(timer);
+  $("count").textContent = text.value.length;
+  if (!text.value.trim()) { out.textContent = ""; $("det").textContent = ""; $("err").textContent = ""; return; }
+  ctrl?.abort(); ctrl = new AbortController();
+  out.classList.add("busy");
+  try {
+    const r = await post2("/api/translate", {text: text.value, source: src.value, target: tgt.value}, ctrl.signal);
+    if (r.status === 401) return showAuth();
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Request failed");
+    out.textContent = d.translation; detected = d.detected;
+    $("det").textContent = src.value === "auto" ? `Detected: ${names[d.detected] || d.detected}` : "";
+    $("err").textContent = "";
+    loadHist();
+  } catch (e) {
+    if (e.name !== "AbortError") $("err").textContent = e.message;
+  } finally { out.classList.remove("busy"); }
+}
+const post2 = (p, o, signal) => api(p, {method: "POST", signal, headers: {"Content-Type": "application/json"}, body: JSON.stringify(o)});
+const queue = () => { clearTimeout(timer); timer = setTimeout(translate, 700); };
+
+text.addEventListener("input", queue);
+[src, tgt].forEach(s => s.addEventListener("change", () => {
+  post("/api/prefs", {source: src.value, target: tgt.value}); translate();
+}));
+$("swap").onclick = () => {
+  const from = src.value === "auto" ? detected : src.value;
+  if (!from || !names[from]) return;
+  const t = tgt.value; src.value = t; tgt.value = from;
+  if (out.textContent) text.value = out.textContent;
+  post("/api/prefs", {source: src.value, target: tgt.value}); translate();
+};
+$("copy").onclick = () => navigator.clipboard?.writeText(out.textContent);
+
+function speak(t, lang) {
+  if (!t || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(t); u.lang = lang; speechSynthesis.speak(u);
+}
+$("spkOut").onclick = () => speak(out.textContent, tgt.value);
+$("spkIn").onclick = () => speak(text.value, src.value === "auto" ? detected : src.value);
+
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+if (!SR) $("mic").style.display = "none";
+else $("mic").onclick = () => {
+  const r = new SR(); r.lang = src.value === "auto" ? "" : src.value;
+  r.onresult = e => { text.value = e.results[0][0].transcript; translate(); };
+  r.onerror = e => $("err").textContent = "Microphone: " + e.error + " (needs HTTPS or localhost)";
+  r.start();
+};
+
+async function uploadAudio(file) {
+  if (!file) return;
+  $("err").textContent = ""; out.textContent = "Transcribing…"; out.classList.add("busy");
+  const fd = new FormData(); fd.append("audio", file);
+  if (src.value !== "auto") fd.append("language", src.value);
+  try {
+    const r = await api("/api/transcribe", {method: "POST", body: fd});
+    if (r.status === 401) return showAuth();
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || "Transcription failed");
+    text.value = d.text;
+    if (names[d.language]) src.value = d.language;
+    translate();
+  } catch (e) { $("err").textContent = e.message; out.textContent = ""; }
+  finally { out.classList.remove("busy"); }
+}
+$("up").onclick = () => $("file").click();
+$("file").onchange = e => { uploadAudio(e.target.files[0]); e.target.value = ""; };
+text.addEventListener("dragover", e => e.preventDefault());
+text.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0];
+  if (f) { e.preventDefault(); uploadAudio(f); }
+});
+
+/* ---------- history (stored in the server database) ---------- */
+async function loadHist() {
+  const r = await api("/api/history");
+  if (!r.ok) return;
+  const {items} = await r.json();
+  const box = $("hist"); box.innerHTML = "";
+  items.forEach(x => {
+    const row = document.createElement("div"); row.className = "row";
+    const b = document.createElement("button"); b.className = "item";
+    b.textContent = `${x.original}  →  ${x.translation}`;
+    b.onclick = () => { text.value = x.original; src.value = names[x.source] ? x.source : "auto"; tgt.value = x.target; translate(); };
+    const d = document.createElement("button"); d.className = "del"; d.textContent = "Remove"; d.setAttribute("aria-label", "Remove from history");
+    d.onclick = async () => { await api("/api/history/" + x.id, {method: "DELETE"}); loadHist(); };
+    row.append(b, d); box.appendChild(row);
+  });
+}
+$("clearHist").onclick = async () => { if (confirm("Delete all of your history?")) { await api("/api/history", {method: "DELETE"}); loadHist(); } };
+
+/* ---------- boot ---------- */
+(async () => {
+  const qs = new URLSearchParams(location.search);
+  const q = {reset: qs.get("reset"), verified: qs.get("verified"), bad: qs.get("verify_failed")};
+  if (location.search) history.replaceState(null, "", location.pathname);   // keep tokens out of history
+  cfg = await (await fetch("/api/config")).json();
+  cfg.languages.forEach(l => names[l.code] = l.name);
+  if (q.reset) { resetToken = q.reset; showAuth(); return setMode("reset"); }
+  const {user} = await (await api("/api/me")).json();
+  if (user) return showApp(user);
+  showAuth();
+  if (cfg.first_run) return setMode("signup", "Create the first account. It becomes the admin.");
+  setMode("signin", q.verified ? "Email confirmed. You can sign in now." : "",
+          q.bad ? "That confirmation link is invalid or expired. Sign in to get a new one." : "");
+})();
+</script>
+</body>
+</html>
